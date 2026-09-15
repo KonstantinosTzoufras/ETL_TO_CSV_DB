@@ -1,15 +1,16 @@
 """Small immutable domain values; no source, UI, persistence or export logic.
 
-The v1 codec owns definition validation. Models preserve omitted options rather
-than inserting defaults. Result models describe future structured diagnostics;
-they do not change the dictionaries returned by the current engine.
+The definition codec owns validation. Models preserve omitted options rather
+than inserting defaults. RowResult retains processing stages for both versions;
+the engine projects version-1 results into its historical dictionary API.
 """
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 from types import MappingProxyType
+from uuid import UUID
 
 
 class _Unset(Enum):
@@ -29,7 +30,7 @@ def _freeze(value):
         return MappingProxyType({key: _freeze(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item) for item in value)
-    if value is UNSET or type(value) in (str, int, float, bool, type(None), bytes, Decimal, date, datetime):
+    if value is UNSET or type(value) in (str, int, float, bool, type(None), bytes, Decimal, date, datetime, time, UUID):
         return value
     raise TypeError(f"Unsupported domain value: {type(value).__name__}")
 
@@ -88,6 +89,10 @@ class SourceColumn(_Immutable):
     name: str
     native_type: str | None = None
     nullable: bool | None = None
+    display_size: int | None = None
+    internal_size: int | None = None
+    precision: int | None = None
+    scale: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

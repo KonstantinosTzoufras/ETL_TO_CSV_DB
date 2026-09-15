@@ -84,7 +84,7 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 
 ## Εξαγωγές
 
-- CSV: streaming, UTF-8 BOM, configurable delimiter, διατήρηση αλλαγών γραμμής μέσα σε quoted πεδία. Formula-like **strings** αποκτούν αρχικό `'` για ασφαλές άνοιγμα σε Excel· οι typed αριθμοί παραμένουν αριθμητικό κείμενο.
+- CSV v1: streaming, UTF-8 BOM, configurable delimiter, διατήρηση αλλαγών γραμμής μέσα σε quoted πεδία. Formula-like **strings** αποκτούν αρχικό `'` για ασφαλές άνοιγμα σε Excel· οι typed αριθμοί παραμένουν αριθμητικό κείμενο.
 - XLSX: write-only export. Όλα τα κελιά γράφονται ως **κείμενο** για διατήρηση IDs/δεκαδικών και αποφυγή formulas. Νέο φύλλο μετά το όριο γραμμών του Excel. Κελιά άνω των 32.767 χαρακτήρων προκαλούν σφάλμα αντί για σιωπηρή αποκοπή.
 - `rejected.csv`: αριθμός εγγραφής, αρχική εγγραφή JSON, mapped τιμές JSON και λόγοι ανά πεδίο JSON.
 - Κάθε run χρησιμοποιεί νέο directory. Downloads εμφανίζονται μόνο για ολοκληρωμένες εκτελέσεις. Σε αποτυχία μπορεί να παραμείνουν μερικά αρχεία στο directory του run· δεν θεωρούνται ολοκληρωμένο αποτέλεσμα.
@@ -116,3 +116,17 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 Δεν έχει ολοκληρωθεί πλήρης ισοδυναμία με το PHP: δεν περιλαμβάνονται joins/WHERE builder, import των παλιών presets, error XLSX, SQL table browser ή εγγραφή σε βάσεις. Επόμενο ουσιαστικό βήμα είναι να συγκρίνουμε μια πραγματική PHP ροή με τη νέα υλοποίηση και να ορίσουμε τις ακριβείς απαιτήσεις για joins, προορισμούς και αυξημένους όγκους.
 
 Τεκμηρίωση εξαρτήσεων: [pyodbc](https://github.com/mkleehammer/pyodbc), [openpyxl write-only mode](https://openpyxl.readthedocs.io/en/latest/optimized.html).
+
+
+## Stage 5 ? Export policies
+
+See [ARCHITECTURE_STAGE_5.md](ARCHITECTURE_STAGE_5.md) for the current versioned
+output contract. V1 output policies remain compatible. V2 defaults to `\N` for
+NULL, preserves empty text and formula-like strings, and supports explicit
+`encoding`, `null_value`, and `formula_policy` destination options. XLSX uses
+text cells and the lxml backend to preserve identifiers, decimals and line endings.
+Run `pip install -r requirements.txt` and restart an existing app process.
+
+Live read-only BRANDS verification passed: 423 rows, 173 columns, exact CSV cell
+representations and no database writes. The temporary data was removed; see the
+[sanitized verification result](integration/sqlserver/brands_stage5_result.json).

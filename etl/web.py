@@ -1,5 +1,6 @@
 """Loopback-only UI for a single trusted local user."""
 import csv
+from .serialization import json_default
 import json
 import logging
 import mimetypes
@@ -58,7 +59,7 @@ class Application:
 def handler_for(app):
     class Handler(BaseHTTPRequestHandler):
         def respond(self, status, value, content_type="application/json; charset=utf-8"):
-            body = json.dumps(value, ensure_ascii=False).encode() if not isinstance(value, bytes) else value
+            body = json.dumps(value, ensure_ascii=False, default=json_default).encode() if not isinstance(value, bytes) else value
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))

@@ -69,6 +69,29 @@ class WebTests(unittest.TestCase):
             time.sleep(.02)
         self.fail("Background run did not finish")
 
+    def test_v2_preview_and_background_history_encode_native_results(self):
+        self.spec["version"] = 2
+        self.spec["columns"] = [
+            {"name": "amount", "literal": "12345678901234567890.12300", "type": "decimal"},
+            {"name": "null", "literal": None}, {"name": "empty", "literal": ""},
+            {"name": "bad", "literal": "003", "type": "int"},
+        ]
+        status, body = self.request("POST", "/api/preview", {"spec": self.spec})
+        self.assertEqual(status, 200)
+        preview = json.loads(body)["sample"]
+        converted = preview[0]["converted_values"]
+        self.assertEqual(converted["amount"], {"$type": "decimal", "value": "12345678901234567890.12300"})
+        self.assertIsNone(converted["null"])
+        self.assertEqual(converted["empty"], "")
+        self.assertNotIn("bad", converted)
+        self.assertEqual(preview[0]["errors"]["bad"][0]["code"], "invalid_type")
+        status, body = self.request("POST", "/api/runs", {"spec": self.spec})
+        self.assertEqual(status, 202)
+        run = self.wait_run(json.loads(body)["id"])
+        self.assertEqual(run["status"], "completed", run["error"])
+        self.assertEqual(run["spec"]["version"], 2)
+        self.assertEqual(run["report"]["sample"], preview[:20])
+
     def test_background_run_download_and_path_restrictions(self):
         status,body=self.request("POST","/api/runs",{"spec":self.spec})
         self.assertEqual(status,202)

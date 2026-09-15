@@ -1,73 +1,33 @@
 """Pure mapping and validation with bounded previews and streamed exports."""
-import csv
-import json
-import math
-import re
 import uuid
 from contextlib import ExitStack
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from itertools import islice
 from pathlib import Path
 
-from .sources import open_source
-from .spec import ConfigError, require, validate
-
-
-def text(value):
-    if value is None:
-        return ""
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
+from .sources import create_source, open_source
+from .models import FieldError, Pipeline, RowResult, SourceDefinition, SourceRow
+from .conversions import convert_value, text
+from .transforms import apply_transform, apply_transforms
+from .validations import required_error, max_length_error, lookup_error
+from .serialization import field_mapping_from_dict, pipeline_from_dict
+from .exporters import OutputWriter, RejectedWriter, excel_safe, legacy_projection
+from .spec import ConfigError, require
 
 
 def transform(value, column):
-    for operation in column.get("transforms", []):
-        if operation == "empty_to_null":
-            if value == "":
-                value = None
-        elif value is not None:
-            value = {"trim": str.strip, "upper": str.upper, "lower": str.lower}[operation](text(value))
-    return value
+    """Legacy public API: version-1 transforms."""
+    return apply_transforms(value, column.get("transforms", []), version=1)
 
 
 def convert(value, kind):
-    if value is None or value == "":
-        return None
-    value = text(value)
-    if kind == "string":
-        return value
-    if kind == "int":
-        if not re.fullmatch(r"-?(0|[1-9][0-9]*)", value) or not -(2**63) <= int(value) < 2**63:
-            raise ValueError("expected a 64-bit integer without leading zeros")
-        return int(value)
-    if kind in {"decimal", "float"}:
-        if not re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", value):
-            raise ValueError("expected a number using a decimal point")
-        number = Decimal(value) if kind == "decimal" else float(value)
-        if not (number.is_finite() if isinstance(number, Decimal) else math.isfinite(number)):
-            raise ValueError("number must be finite")
-        return number
-    if kind == "bool":
-        if value.lower() not in {"0", "1", "true", "false"}:
-            raise ValueError("expected 0, 1, true or false")
-        return value.lower() in {"1", "true"}
-    if kind == "date":
-        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
-            raise ValueError("expected YYYY-MM-DD")
-        return date.fromisoformat(value)
-    if kind == "datetime":
-        if not re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ]", value):
-            raise ValueError("expected an ISO date and time")
-        return datetime.fromisoformat(value)
-    raise ConfigError(f"Unsupported type: {kind}")
+    """Legacy public API: version-1 conversion, including empty-to-null."""
+    return convert_value(value, kind, version=1)
 
 
 def lookup_sets(spec, root):
     result = {}
+    version = spec.get("version", 1)
     for column in spec["columns"]:
         if "lookup" not in column:
             continue
@@ -77,104 +37,76 @@ def lookup_sets(spec, root):
             require(lookup["column"] in headers, f"Unknown lookup column: {lookup['column']}")
             for number, row in enumerate(rows):
                 require(number < 100000, "Lookup exceeds 100,000 rows; narrow the lookup source")
-                value = transform(row[lookup["column"]], column)
-                if value is not None and value != "":
-                    try:
-                        allowed.add(convert(value, column.get("type", "string")))
-                    except (ValueError, InvalidOperation, OverflowError):
-                        raise ConfigError(f"Lookup contains an invalid {column.get('type', 'string')} value") from None
+                try:
+                    value = apply_transforms(row[lookup["column"]], column.get("transforms", []), version=version)
+                    if value is not None and (version == 2 or value != ""):
+                        allowed.add(convert_value(value, column.get("type", "string"), version=version))
+                except (ValueError, InvalidOperation, OverflowError):
+                    raise ConfigError(f"Lookup contains an invalid {column.get('type', 'string')} value") from None
         result[column["name"]] = allowed
     return result
 
 
-def map_row(row, columns, lookups):
-    output, errors = {}, {}
-    for column in columns:
-        name = column["name"]
-        value = transform(row[column["source"]] if "source" in column else column["literal"], column)
-        reasons = []
-        if column.get("required") and (value is None or not text(value).strip()):
-            reasons.append("required value is missing")
-        if "max_length" in column and len(text(value)) > column["max_length"]:
-            reasons.append(f"exceeds {column['max_length']} characters")
+def process_row(pipeline: Pipeline, row: SourceRow, lookups) -> RowResult:
+    """One field flow for both execution modes; retain every completed stage."""
+    require(pipeline.version in (1, 2), "Unsupported processing version")
+    transformed, converted, errors = {}, {}, []
+    for column in pipeline.columns:
+        name = column.name
+        value = row.values[column.source] if column.source is not None else column.literal
         try:
-            converted = convert(value, column.get("type", "string"))
-            if name in lookups and converted is not None and converted not in lookups[name]:
-                reasons.append("value is absent from lookup")
-            output[name] = converted
+            for operation in column.transforms or ():
+                value = apply_transform(value, operation.name, version=pipeline.version)
+        except ConfigError:
+            raise
         except (ValueError, InvalidOperation, OverflowError) as error:
-            output[name] = value
-            reasons.append(str(error))
-        if reasons:
-            errors[name] = reasons
-    return output, errors
+            transformed[name] = value
+            errors.append(FieldError(name, "invalid_transform_input", str(error), "transform"))
+            continue
+        transformed[name] = value
+        rules = {rule.name: rule.parameters for rule in column.validations}
+        if rules.get("required", {}).get("value"):
+            error = required_error(name, value)
+            if error:
+                errors.append(error)
+        if "max_length" in rules:
+            error = max_length_error(name, value, rules["max_length"]["value"])
+            if error:
+                errors.append(error)
+        try:
+            result = convert_value(value, column.target_type or "string", version=pipeline.version)
+        except ConfigError:
+            raise
+        except (ValueError, InvalidOperation, OverflowError) as error:
+            errors.append(FieldError(name, "invalid_type", str(error), "conversion"))
+            continue
+        converted[name] = result
+        require(pipeline.version == 1 or "lookup" not in rules or name in lookups, f"Lookup not prepared: {name}")
+        if name in lookups:
+            error = lookup_error(name, result, lookups[name])
+            if error:
+                errors.append(error)
+    return RowResult(row, transformed, converted, tuple(errors))
 
 
-def excel_safe(value):
-    """Escape formula-like text in CSVs intended to be opened in Excel."""
-    if not isinstance(value, str):
-        return text(value)
-    value = text(value)
-    return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")) else value
+def map_row(row, columns, lookups):
+    """Retained dictionary API, always version 1."""
+    pipeline = Pipeline("legacy", SourceDefinition("csv"),
+                        tuple(field_mapping_from_dict(column) for column in columns), {})
+    return legacy_projection(process_row(pipeline, SourceRow(1, row), lookups))
 
 
-class OutputWriter:
-    def __init__(self, directory, names, destination, stack):
-        self.kind = destination["kind"]
-        self.path = directory / ("valid." + self.kind)
-        self.names = names
-        self.workbook = None
-        self.count = 0
-        if self.kind == "csv":
-            handle = stack.enter_context(self.path.open("w", encoding="utf-8-sig", newline=""))
-            self.writer = csv.writer(handle, delimiter=destination.get("delimiter", ";"))
-            self.writer.writerow([excel_safe(n) for n in names])
-        else:
-            try:
-                from openpyxl import Workbook
-            except ImportError:
-                raise ConfigError("XLSX export needs openpyxl. Install requirements.txt.") from None
-            self.workbook = Workbook(write_only=True)
-            self.sheet = self.workbook.create_sheet("Data")
-            self.append_xlsx(names)
-
-    def append_xlsx(self, values):
-        from openpyxl.cell import WriteOnlyCell
-        cells = []
-        for value in values:
-            value = text(value)
-            require(len(value) <= 32767, "XLSX cell exceeds 32,767 characters; use CSV")
-            cell = WriteOnlyCell(self.sheet, value=value)
-            cell.data_type = "s"  # Preserve IDs and decimals; never create formulas.
-            cells.append(cell)
-        self.sheet.append(cells)
-
-    def write(self, row):
-        values = [row[name] for name in self.names]
-        if self.kind == "csv":
-            self.writer.writerow([excel_safe(value) for value in values])
-        else:
-            if self.count and self.count % 1048575 == 0:
-                self.sheet = self.workbook.create_sheet()
-                self.append_xlsx(self.names)
-            self.append_xlsx(values)
-        self.count += 1
-
-    def finish(self):
-        if self.workbook:
-            self.workbook.save(self.path)
-            self.workbook.close()
-
-
-def execute(spec, root, output_root=None, limit=None, progress=None):
-    validate(spec)
+def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=None):
+    pipeline = pipeline_from_dict(spec)
     require(limit is None or type(limit) is int and 1 <= limit <= 1000, "Preview limit must be 1–1000")
     require(limit is not None or output_root is not None, "Full execution needs an output directory")
     names = [column["name"] for column in spec["columns"]]
     lookups = lookup_sets(spec, root)
     report = {"processed": 0, "valid": 0, "invalid": 0, "sample": [], "preview": limit is not None}
     with ExitStack() as stack:
-        headers, rows = stack.enter_context(open_source(spec["source"], root))
+        stream = stack.enter_context(create_source(pipeline.source, root).open())
+        headers = [column.name for column in stream.schema]
+        rows = iter(stream)
         for column in spec["columns"]:
             require("source" not in column or column["source"] in headers, f"Unknown source column: {column.get('source')}")
         writer = rejected = None
@@ -182,22 +114,29 @@ def execute(spec, root, output_root=None, limit=None, progress=None):
             directory = Path(output_root) / uuid.uuid4().hex
             directory.mkdir(parents=True)
             report["directory"] = str(directory)
-            writer = OutputWriter(directory, names, spec["destination"], stack)
+            writer = OutputWriter(directory, names, spec["destination"], stack, version=pipeline.version)
             # Finalize write-only XLSX streams even if a later input row fails.
             # Failed runs never expose their partial files for download.
             stack.callback(writer.finish)
-            rejected = csv.writer(stack.enter_context((directory / "rejected.csv").open("w", encoding="utf-8-sig", newline="")), delimiter=";")
-            rejected.writerow(["record_number", "source_json", "mapped_json", "errors_json"])
-        for number, row in enumerate(islice(rows, limit) if limit is not None else rows, 1):
-            mapped, errors = map_row(row, spec["columns"], lookups)
+            rejected = RejectedWriter(directory, spec["destination"], stack, version=pipeline.version)
+        for row in islice(rows, limit) if limit is not None else rows:
+            result = process_row(pipeline, row, lookups)
+            number = row.number
+            if on_row is not None:
+                on_row(result)
             report["processed"] += 1
-            report["invalid" if errors else "valid"] += 1
+            report["valid" if result.valid else "invalid"] += 1
+            if pipeline.version == 1:
+                mapped, errors = legacy_projection(result)
+                sample = {"record": number, "values": {k: text(v) for k, v in mapped.items()}, "errors": errors}
+            else:
+                sample = result
             if len(report["sample"]) < (limit or 20):
-                report["sample"].append({"record": number, "values": {k: text(v) for k, v in mapped.items()}, "errors": errors})
-            if errors and rejected:
-                rejected.writerow([number, json.dumps(row, ensure_ascii=False, default=text), json.dumps(mapped, ensure_ascii=False, default=text), json.dumps(errors, ensure_ascii=False)])
-            elif writer and not errors:
-                writer.write(mapped)
+                report["sample"].append(sample)
+            if not result.valid and rejected:
+                rejected.write_result(result)
+            elif writer and result.valid:
+                writer.write_result(result)
             if progress and number % 1000 == 0:
                 progress({k: report[k] for k in ("processed", "valid", "invalid")})
     return report

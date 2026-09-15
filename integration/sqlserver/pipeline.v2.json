@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "name": "SQL Server Stage 4 verification",
+  "source": {
+    "kind": "sqlserver",
+    "connection_env": "ETL_SQL_STAGE4",
+    "schema": "dbo",
+    "table": "ETLStage4Fixture"
+  },
+  "columns": [
+    {"name": "row_id", "source": "row_id", "type": "int", "required": true},
+    {"name": "case_id", "source": "case_id", "type": "int"},
+    {"name": "code", "source": "code", "type": "string"},
+    {"name": "code_as_int", "source": "code", "type": "int", "transforms": ["trim"]},
+    {"name": "greek_text", "source": "greek_text", "type": "string"},
+    {"name": "native_bigint", "source": "native_bigint", "type": "int"},
+    {"name": "native_int", "source": "native_int", "type": "int"},
+    {"name": "amount", "source": "amount", "type": "decimal"},
+    {"name": "enabled", "source": "enabled", "type": "bool"},
+    {"name": "native_date", "source": "native_date", "type": "date"},
+    {"name": "native_datetime", "source": "native_datetime", "type": "datetime"},
+    {"name": "date_text", "source": "date_text", "type": "string"},
+    {"name": "date_from_text", "source": "date_text", "type": "date"},
+    {"name": "optional_text", "source": "optional_text", "type": "string"},
+    {"name": "trim_then_null", "source": "optional_text", "type": "string", "transforms": ["trim", "empty_to_null"]},
+    {"name": "null_then_trim", "source": "optional_text", "type": "string", "transforms": ["empty_to_null", "trim"]},
+    {"name": "required_probe", "source": "required_probe", "type": "string", "required": true, "max_length": 2},
+    {"name": "memo", "source": "memo", "type": "string"}
+  ],
+  "destination": {"kind": "csv", "delimiter": ";"}
+}

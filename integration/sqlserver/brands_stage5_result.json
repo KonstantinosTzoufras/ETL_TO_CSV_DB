@@ -1,0 +1,43 @@
+{
+  "verified_at_utc": "2026-09-15T10:58:49.644836+00:00",
+  "status": "passed",
+  "table": "dbo.BRANDS",
+  "input_rows": 423,
+  "output_rows": 423,
+  "rejected_rows": 0,
+  "mapping_columns": 173,
+  "header_columns": 173,
+  "csv_bytes": 444338,
+  "observations": {
+    "empty_string_cells": 2515,
+    "unicode_cells": 429,
+    "multiline_cells": 2,
+    "null_cells": 35642,
+    "exact_decimal_cells": 11175
+  },
+  "all_cells_match_exact_representations": true,
+  "encoding": "utf-8-sig",
+  "delimiter": ";",
+  "null_value": "\\N",
+  "formula_policy": "preserve",
+  "sql_audit": [
+    {
+      "selects": 1,
+      "batch_rows": [],
+      "cursor_closed": true,
+      "connection_closed": true
+    },
+    {
+      "selects": 1,
+      "batch_rows": [
+        423,
+        0
+      ],
+      "cursor_closed": true,
+      "connection_closed": true
+    }
+  ],
+  "database_writes": 0,
+  "temporary_csv_removed": true,
+  "seconds": 5.905
+}

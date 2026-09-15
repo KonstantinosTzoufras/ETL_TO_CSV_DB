@@ -42,9 +42,23 @@ TYPES = {"string", "int", "decimal", "float", "bool", "date", "datetime"}
 TRANSFORMS = {"trim", "upper", "lower", "empty_to_null"}
 
 
+def destination_spec(destination, version):
+    require(type(version) is int and version in (1, 2), "Pipeline version must be 1 or 2")
+    allowed = {"kind", "delimiter"}
+    if version == 2:
+        allowed |= {"encoding", "null_value", "formula_policy"}
+    keys(destination, allowed, "destination")
+    require(destination.get("kind") in {"csv", "xlsx"}, "Destination must be csv or xlsx")
+    delimiter = destination.get("delimiter", ";")
+    require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single export delimiter")
+    require(destination.get("encoding", "utf-8-sig") in ("utf-8", "utf-8-sig"), "Export encoding must be utf-8 or utf-8-sig")
+    require(isinstance(destination.get("null_value", ""), str), "null_value must be a string (empty explicitly permits NULL/empty collapse)")
+    require(destination.get("formula_policy", "preserve") in ("preserve", "apostrophe"), "formula_policy must be preserve or apostrophe")
+
+
 def validate(spec):
     keys(spec, {"version", "name", "source", "columns", "destination"}, "pipeline")
-    require(type(spec.get("version")) is int and spec["version"] == 1, "Pipeline version must be 1")
+    require(type(spec.get("version")) is int and spec["version"] in (1, 2), "Pipeline version must be 1 or 2")
     require(isinstance(spec.get("name"), str) and 0 < len(spec["name"].strip()) <= 120, "Name must contain 1–120 characters")
     source_spec(spec.get("source"))
     columns = spec.get("columns")
@@ -72,9 +86,5 @@ def validate(spec):
             keys(lookup, {"source", "column"}, "lookup")
             source_spec(lookup.get("source"))
             require(isinstance(lookup.get("column"), str) and lookup["column"], f"{name}: lookup column required")
-    destination = spec.get("destination")
-    keys(destination, {"kind", "delimiter"}, "destination")
-    require(destination.get("kind") in {"csv", "xlsx"}, "Destination must be csv or xlsx")
-    delimiter = destination.get("delimiter", ";")
-    require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single export delimiter")
+    destination_spec(spec.get("destination"), spec["version"])
     return spec

@@ -1,12 +1,14 @@
 """Small fixtures shared by legacy characterization and future-v2 contracts."""
-import copy
 import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from etl.engine import execute, map_row
+from etl.engine import execute, map_row, legacy_projection
+from etl.models import SourceColumn, SourceRow
+from etl.sources import SourceStream
+from unittest.mock import Mock
 
 
 def field(**options):
@@ -23,24 +25,26 @@ class SemanticsTestCase(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
-    def execute_rows(self, rows, columns=None, limit=None, observed=None):
+    def execute_rows(self, rows, columns=None, limit=None, observed=None, version=1):
         # Use the real execution loop and writers, with an in-memory source so
         # SQL-native None and Decimal values can be characterized without a DB.
         spec = {
-            "version": 1, "name": "Semantics fixture",
+            "version": version, "name": "Semantics fixture",
             "source": {"kind": "csv", "path": "fixture.csv"},
             "columns": columns or [field()], "destination": {"kind": "csv"},
         }
 
         @contextmanager
-        def source(*args, **kwargs):
-            yield list(rows[0]), iter(rows)
+        def source():
+            yield SourceStream(tuple(SourceColumn(name) for name in rows[0]),
+                               iter(SourceRow(n, row) for n, row in enumerate(rows, 1)))
 
-        def record(row, mappings, lookups):
-            result = map_row(row, mappings, lookups)
+        def record(result):
             if observed is not None:
-                observed.append(copy.deepcopy((row, result)))
-            return result
+                observed.append((dict(result.original_values), legacy_projection(result)) if version == 1 else result)
 
-        with patch("etl.engine.open_source", source), patch("etl.engine.map_row", side_effect=record):
-            return execute(spec, self.root, self.root / "out" if limit is None else None, limit=limit)
+        adapter = Mock()
+        adapter.open = source
+        with patch("etl.engine.create_source", return_value=adapter):
+            return execute(spec, self.root, self.root / "out" if limit is None else None,
+                           limit=limit, on_row=record)

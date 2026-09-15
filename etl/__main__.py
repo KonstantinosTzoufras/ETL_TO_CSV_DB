@@ -1,5 +1,6 @@
 import argparse
 import csv
+from .serialization import json_default
 import json
 import sys
 from pathlib import Path
@@ -36,7 +37,7 @@ def main():
         report = execute(spec, root, data / "runs" if run_id else None, limit=100 if args.command == "preview" else None)
         if run_id:
             store.update_run(run_id, "completed", report)
-        print(json.dumps(report, ensure_ascii=True, indent=2))
+        print(json.dumps(report, ensure_ascii=True, indent=2, default=json_default))
         return 0
     except (ValueError, TypeError, OSError, csv.Error) as error:
         if run_id:

@@ -108,13 +108,13 @@ class V1ModelCodecTests(unittest.TestCase):
         self.assertNotEqual(compact, original)
         self.assertEqual(json.loads(compact), json.loads(original))
 
-    def test_version_two_is_still_rejected(self):
+    def test_unsupported_version_is_rejected(self):
         spec = definition()
-        spec["version"] = 2
+        spec["version"] = 3
         with self.assertRaisesRegex(ConfigError, "version must be 1"):
             pipeline_from_dict(spec)
         with self.assertRaisesRegex(ConfigError, "version must be 1"):
-            pipeline_to_dict(replace(pipeline_from_dict(definition()), version=2))
+            pipeline_to_dict(replace(pipeline_from_dict(definition()), version=3))
 
     def test_unknown_v1_options_still_fail_validation(self):
         spec = definition()

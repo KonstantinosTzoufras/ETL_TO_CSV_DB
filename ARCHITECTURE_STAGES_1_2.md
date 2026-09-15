@@ -5,7 +5,8 @@
 This change adds characterization tests, an explicit desired-v2 test contract,
 immutable domain models, and version-1 JSON conversion. It does not enable v2
 processing or modify the current engine, sources, exporters, UI, CLI, or store.
-Stage 3 has not started.
+This document records the Stage 1–2 checkpoint. The subsequent source-adapter
+work is documented in [Stage 3](ARCHITECTURE_STAGE_3.md).
 
 ## Stage 1: behavioral baseline
 

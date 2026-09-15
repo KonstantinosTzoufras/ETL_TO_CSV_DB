@@ -39,7 +39,7 @@ function read() {
     if(field("max_length").value!=="") column.max_length=Number(field("max_length").value);
     return column;
   });
-  definition={version:1,name:$("name").value,source:source(),columns,destination:{kind:$("format").value,delimiter:$("output-delimiter").value}};
+  definition={version:definition.version,name:$("name").value,source:source(),columns,destination:{...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value}};
   return structuredClone(definition);
 }
 function renderColumns() {
@@ -74,7 +74,7 @@ function preview(report) {
   $("results").hidden=false;
   $("counts").innerHTML=`<div class="count"><b>${report.processed}</b>Sampled records</div><div class="count good"><b>${report.valid}</b>Valid</div><div class="count bad"><b>${report.invalid}</b>Rejected</div>`;
   const names=definition.columns.map(c=>c.name);
-  $("preview-table").innerHTML=`<table><thead><tr><th>STATUS</th>${names.map(n=>`<th>${esc(n)}</th>`).join("")}<th>VALIDATION</th></tr></thead><tbody>${report.sample.map(row=>`<tr><td class="${Object.keys(row.errors).length?"invalid":"valid"}">${Object.keys(row.errors).length?"Rejected":"Valid"}</td>${names.map(n=>`<td>${esc(row.values[n])}</td>`).join("")}<td class="reason">${Object.entries(row.errors).map(([k,v])=>`${esc(k)}: ${esc(v.join(", "))}`).join("<br>")}</td></tr>`).join("")}</tbody></table>`;
+  $("preview-table").innerHTML=`<table><thead><tr><th>STATUS</th>${names.map(n=>`<th>${esc(n)}</th>`).join("")}<th>VALIDATION</th></tr></thead><tbody>${report.sample.map(row=>`<tr><td class="${Object.keys(row.errors).length?"invalid":"valid"}">${Object.keys(row.errors).length?"Rejected":"Valid"}</td>${names.map(n=>`<td>${esc(displayValue((row.values || row.converted_values)[n]))}</td>`).join("")}<td class="reason">${Object.entries(row.errors).map(([k,v])=>`${esc(k)}: ${esc(v.map(error=>typeof error === "string" ? error : error.message).join(", "))}`).join("<br>")}</td></tr>`).join("")}</tbody></table>`;
   $("results").scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function refreshRuns() {
@@ -105,3 +105,5 @@ $("advanced").ontoggle=()=>{if($("advanced").open)$("json").value=JSON.stringify
 $("json").oninput=()=>{dirty=true;};
 $("apply").onclick=()=>action(async()=>{const next=JSON.parse($("json").value);await api("/api/validate",{spec:next});definition=next;render();dirty=true;notify("Definition applied. Save the pipeline to keep these changes.");});
 (async()=>{try{const bootstrap=await api("/api/bootstrap");token=bootstrap.token;openDefinition(bootstrap.example||blank());await refreshSaved();await refreshRuns();}catch(error){notify(error.message,true);}})();
+
+function displayValue(value) { return value && typeof value === "object" && "$type" in value ? value.value : value; }
