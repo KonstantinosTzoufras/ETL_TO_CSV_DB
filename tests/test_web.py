@@ -3,6 +3,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -113,6 +114,130 @@ class WebTests(unittest.TestCase):
         self.assertEqual(run["status"],"failed")
         self.assertIn("not found",run["error"])
         self.assertEqual(self.request("GET",f"/download/{run_id}/valid.csv")[0],404)
+
+    def test_discovery_flow_is_source_only_and_preserves_processed_preview(self):
+        def discovery(operation, **values):
+            status, body = self.request("POST", "/api/discovery/" + operation, {"connector": "csv", **values})
+            self.assertEqual(status, 200, body)
+            return json.loads(body)
+        with patch("etl.web.execute", side_effect=AssertionError("Discovery must not process")):
+            self.assertIn("sample", discovery("capabilities")["operations"])
+            dataset = discovery("datasets")["items"][0]
+            source = discovery("configure", dataset_key=dataset["key"], options={"delimiter": ";", "encoding": "utf-8-sig"})
+            columns = discovery("columns", source=source)
+            sample = discovery("sample", source=source, limit=2)
+        self.assertEqual(len(sample["rows"]), 2)
+        self.assertEqual(sample["stop_reason"], "row_limit")
+        self.assertEqual([r["number"] for r in sample["rows"]], [1, 2])
+        self.assertEqual(list(sample["rows"][0]["values"]), [c["column"]["name"] for c in columns])
+        self.assertNotIn("errors", sample["rows"][0])
+        self.assertNotIn("columns", source)
+        self.assertEqual(self.app.store.runs(), [])
+        self.assertEqual(self.app.store.pipelines(), [])
+        self.spec["source"] = source
+        status, body = self.request("POST", "/api/preview", {"spec": self.spec})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["invalid"], 2)
+
+    def test_discovery_security_and_errors(self):
+        request = {"connector": "csv"}
+        for headers in ({"Origin": "https://attacker.test"}, {"X-ETL-Token": "wrong"}):
+            self.assertEqual(self.request("POST", "/api/discovery/datasets", request, headers)[0], 403)
+        for operation, body, code in (
+            ("resolve", {"locator": "../secret.csv"}, "access_denied"),
+            ("datasets", {"limit": 101}, "invalid_read_options"),
+            ("datasets", {"query": "SELECT 1"}, "invalid_read_options"),
+            ("counts", {}, "unsupported_operation"),
+            ("sample", {"source": {"kind": "csv", "path": "missing.csv"}}, "dataset_unavailable"),
+        ):
+            status, data = self.request("POST", "/api/discovery/" + operation, {**request, **body})
+            self.assertEqual(status, 400)
+            self.assertEqual(json.loads(data)["code"], code)
+
+    def test_preview_diagnostics_reuse_one_processing_pass_for_both_versions(self):
+        from etl.engine import process_row
+        for version in (1, 2):
+            self.spec["version"] = version
+            with patch("etl.engine.process_row", wraps=process_row) as process:
+                status, body = self.request("POST", "/api/preview", {"spec": self.spec, "diagnostics": True})
+            self.assertEqual(status, 200, body)
+            report = json.loads(body)
+            self.assertEqual(process.call_count, report["processed"])
+            self.assertEqual(len(report["diagnostics"]), report["processed"])
+            self.assertEqual(sum(not r["valid"] for r in report["diagnostics"]), report["invalid"])
+            self.assertTrue(all(not r["legacy"] for r in report["diagnostics"]))
+            self.assertEqual(report["diagnostics"][0]["fields"][0]["name"], self.spec["columns"][0]["name"])
+        self.assertEqual(self.app.store.runs(), [])
+
+    def test_stored_rejections_use_snapshot_without_rerun_or_current_source(self):
+        self.spec["version"] = 2
+        self.spec["columns"] = [{"name": "bad", "literal": "003", "type": "int", "max_length": 2},
+                                {"name": "large", "literal": "9223372036854775807", "type": "int"}]
+        _, body = self.request("POST", "/api/runs", {"spec": self.spec})
+        run = self.wait_run(json.loads(body)["id"])
+        self.assertEqual(run["status"], "completed")
+        (self.root / "input.csv").unlink()
+        self.spec["columns"][0]["name"] = "edited_name"
+        self.app.store.save(self.spec)
+        with patch("etl.web.execute", side_effect=AssertionError("must not rerun")), patch("etl.engine.create_source", side_effect=AssertionError("source must stay closed")):
+            status, body = self.request("POST", "/api/diagnostics/rejections", {"run_id": run["id"], "limit": 2})
+            self.assertEqual(status, 200, body)
+            first = json.loads(body)
+            status, body = self.request("POST", "/api/diagnostics/rejections", {"run_id": run["id"], "cursor": first["next_cursor"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(len(first["rows"]), 2)
+        self.assertEqual(len(json.loads(body)["rows"]), 3)
+        fields = first["rows"][0]["fields"]
+        self.assertEqual(fields[0]["name"], "bad")
+        self.assertEqual(len(fields[0]["errors"]), 2)
+        self.assertFalse(fields[0]["converted"]["available"])
+        self.assertEqual(fields[1]["converted"]["text"], "9223372036854775807")
+        self.assertEqual(len(self.app.store.runs()), 1)
+
+    def test_diagnostics_endpoint_protection_and_missing_run(self):
+        body = {"run_id": "missing"}
+        self.assertEqual(self.request("POST", "/api/diagnostics/rejections", body, {"X-ETL-Token": "wrong"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/diagnostics/rejections", body)[0], 400)
+        self.assertEqual(self.request("GET", "/diagnostics.js")[0], 200)
+
+    def test_template_api_copy_bind_save_run_and_revision_independence(self):
+        from tests.test_templates import blueprint, draft
+        def call(operation, body):
+            status, payload = self.request("POST", "/api/templates/" + operation, body)
+            self.assertEqual(status, 200, payload)
+            return json.loads(payload)
+        template = call("create", {"definition": blueprint()})
+        self.assertEqual(len(call("list", {})), 1)
+        self.assertEqual(call("read", {"id": template["id"], "revision": 1}), template)
+        pending = call("apply", {"id": template["id"], "revision": 1, "spec": draft()})
+        self.assertEqual(pending["bindings"], [None, None, None])
+        generated = call("bind", {"template": pending["template"], "spec": pending["pipeline"], "bindings": [
+            {"literal": "003"}, {"literal": " Name "}, {"literal": ""}]})
+        _, saved = self.request("POST", "/api/pipelines", {"spec": generated})
+        _, payload = self.request("POST", "/api/runs", {"spec": generated})
+        run = self.wait_run(json.loads(payload)["id"])
+        self.assertEqual(run["status"], "completed")
+        edited = blueprint(); edited["fields"][0]["target_type"] = "int"
+        second = call("revision", {"id": template["id"], "base_revision": 1, "definition": edited})
+        self.assertEqual(second["revision"], 2)
+        for revision in (1, 2):
+            (self.app.data / "templates" / template["id"] / f"{revision}.json").unlink()
+        self.assertEqual(call("bind", {"template": pending["template"], "spec": pending["pipeline"], "bindings": [
+            {"literal": "003"}, {"literal": " Name "}, {"literal": ""}]}), generated)
+        self.assertEqual(self.app.store.pipelines()[0]["spec"], generated)
+        self.assertEqual(self.app.store.run(run["id"])["spec"], generated)
+        self.assertEqual(run["report"]["valid"], 5)
+
+    def test_template_api_blocks_unresolved_versions_existing_mappings_and_forbidden_keys(self):
+        from tests.test_templates import blueprint, draft
+        _, payload = self.request("POST", "/api/templates/create", {"definition": blueprint()})
+        template = json.loads(payload)
+        for spec in (draft(version=1), self.spec):
+            self.assertEqual(self.request("POST", "/api/templates/apply", {"id": template["id"], "revision": 1, "spec": spec})[0], 400)
+        self.assertEqual(self.request("POST", "/api/templates/bind", {"template": template, "spec": draft(), "bindings": [{"literal": "003"}, {"literal": "name"}, None]})[0], 400)
+        self.assertEqual(self.request("POST", "/api/templates/create", {"definition": {**blueprint(), "source": self.spec["source"]}})[0], 400)
+        self.assertEqual(self.request("POST", "/api/templates/list", {}, {"X-ETL-Token": "wrong"})[0], 403)
+        self.assertEqual(self.request("GET", "/templates.js")[0], 200)
 
 
 if __name__ == "__main__":

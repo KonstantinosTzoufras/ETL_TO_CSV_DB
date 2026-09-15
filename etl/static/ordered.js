@@ -1,0 +1,54 @@
+"use strict";
+let orderedDraft=null, orderedIndex=0;
+const orderedStep=number=>({id:`step-${number}`,name:`Step ${number}`,processing_version:2,query:{format_version:1,dialect:"tsql",sql:"",parameters:[],timeout_seconds:60},columns:[],destination:{kind:"csv",delimiter:";"}});
+function clearOrdered(){orderedDraft=null;$("ordered-editor").hidden=true;}
+function renderOrderedMode(){
+ const active=!!orderedDraft;
+ $("ordered-editor").hidden=!active;
+ $("source-kind").disabled=active;$("query-connection").disabled=active;
+ $("query-connections").hidden=active;
+ $("template-new-draft").hidden=active;
+ $("name").parentElement.firstChild.textContent=active?"Step name":"Pipeline name";
+}
+function openOrdered(spec,id=null){
+ clearTemplateDraft();orderedDraft=structuredClone(spec);orderedIndex=0;pipelineId=id;dirty=false;
+ $("ordered-name").value=spec.name;$("ordered-policy").value=spec.failure_policy||"stop";
+ if(![...$("ordered-connection").options].some(o=>o.value===spec.connection_env))$("ordered-connection").add(new Option(spec.connection_env||"Select an approved connection",spec.connection_env));
+ $("ordered-connection").value=spec.connection_env;
+ showOrderedStep();renderSaved();
+}
+function showOrderedStep(){
+ const step=orderedDraft.steps[orderedIndex];
+ definition={version:step.processing_version,name:step.name,source:{kind:"sqlserver_query",connection_env:orderedDraft.connection_env,query:structuredClone(step.query)},columns:structuredClone(step.columns),destination:structuredClone(step.destination)};
+ $("ordered-step-id").value=step.id;$("ordered-version").value=String(step.processing_version);
+ render();renderOrderedSteps();
+}
+function captureOrderedStep(){
+ if(!orderedDraft)return;
+ const single=read();
+ if(single.source.kind!=="sqlserver_query"||single.source.connection_env!==orderedDraft.connection_env)throw new Error("Every step must use the shared query connection.");
+ orderedDraft.steps[orderedIndex]={id:$("ordered-step-id").value,name:single.name,processing_version:single.version,query:structuredClone(single.source.query),columns:single.columns,destination:single.destination};
+ orderedDraft.name=$("ordered-name").value;orderedDraft.failure_policy=$("ordered-policy").value;
+ renderOrderedSteps();
+}
+function workingDefinition(){if(!orderedDraft)return read();captureOrderedStep();return structuredClone(orderedDraft);}
+function renderOrderedSteps(){
+ $("ordered-steps").innerHTML=orderedDraft.steps.map((s,i)=>`<button data-ordered-index="${i}" ${i===orderedIndex?'aria-current="step"':""}>${i+1}. ${esc(s.name)} (${s.columns.length} mappings) → ${esc(s.id)}.${esc(s.destination.kind)}</button>`).join("");
+ const s=orderedDraft.steps[orderedIndex];$("ordered-output").textContent=`Selected step ${orderedIndex+1}. Output: ${String(orderedIndex+1).padStart(3,"0")}-${s.id}/${s.id}.${s.destination.kind}. Rejected rows do not fail the step.`;
+}
+$("new-ordered").onclick=()=>{if(!dirty||confirm("Discard unsaved changes?"))openOrdered({kind:"ordered_query_export",format_version:1,name:"Ordered query exports",connection_env:"",failure_policy:"stop",steps:[orderedStep(1)]});};
+$("ordered-steps").onclick=event=>{const button=event.target.closest("[data-ordered-index]");if(button)action(async()=>{captureOrderedStep();orderedIndex=Number(button.dataset.orderedIndex);showOrderedStep();});};
+$("ordered-add").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDraft.steps.length>=20)throw new Error("Maximum 20 steps");let n=orderedDraft.steps.length+1;while(orderedDraft.steps.some(s=>s.id===`step-${n}`))n++;orderedDraft.steps.push(orderedStep(n));orderedIndex=orderedDraft.steps.length-1;showOrderedStep();dirty=true;});
+function moveOrdered(delta){return action(async()=>{captureOrderedStep();const next=orderedIndex+delta;if(next<0||next>=orderedDraft.steps.length)return;[orderedDraft.steps[orderedIndex],orderedDraft.steps[next]]=[orderedDraft.steps[next],orderedDraft.steps[orderedIndex]];orderedIndex=next;showOrderedStep();dirty=true;});}
+$("ordered-up").onclick=()=>moveOrdered(-1);$("ordered-down").onclick=()=>moveOrdered(1);
+$("ordered-remove").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDraft.steps.length===1)throw new Error("Keep at least one step");orderedDraft.steps.splice(orderedIndex,1);orderedIndex=Math.min(orderedIndex,orderedDraft.steps.length-1);showOrderedStep();dirty=true;});
+$("ordered-connections").onclick=()=>action(async()=>{const data=await api("/api/query/connections",{});const selected=orderedDraft.connection_env;$("ordered-connection").replaceChildren(new Option("Select an approved connection",""));data.connections.forEach(name=>$("ordered-connection").add(new Option(name,name)));if(selected && !data.connections.includes(selected))$("ordered-connection").add(new Option(selected+" (not currently approved)",selected));$("ordered-connection").value=selected;notify(data.connections.length?"Shared connection references loaded; select explicitly.":"No read-only query connections are approved.");});
+$("ordered-connection").onchange=()=>action(async()=>{captureOrderedStep();orderedDraft.connection_env=$("ordered-connection").value;showOrderedStep();dirty=true;});
+$("ordered-version").onchange=()=>action(async()=>{captureOrderedStep();orderedDraft.steps[orderedIndex].processing_version=Number($("ordered-version").value);showOrderedStep();dirty=true;});
+function orderedRunCard(run){
+ const entries=run.report.steps||run.spec.steps.map((s,i)=>({...s,position:i+1,status:"pending"}));
+ return `<div class="ordered-run"><h3>${esc(run.name)} <span class="run-status">${esc(run.status)}</span></h3><p>${esc(run.started)} — ${esc(run.finished||"In progress")}</p>${run.error?`<p class="reason">${esc(run.error)}</p>`:""}<ol>${entries.map(step=>{
+  const ready=step.status==="completed",partial=["failed","interrupted"].includes(step.status),prefix=`/download/${encodeURIComponent(run.id)}/${encodeURIComponent(step.id)}/`;
+  return `<li><strong>${esc(step.name)}</strong> — ${esc(step.status)}<p>${step.processed??0} processed / ${step.valid??0} valid / ${step.invalid??0} rejected${partial?" (incomplete counts)":""}</p><p>${esc(step.started||"Not started")}${step.finished?" / "+esc(step.finished):""}</p>${step.error?`<p class="reason">${esc(step.error.message)}</p>`:""}${ready?`<a href="${prefix}${encodeURIComponent(step.output)}">Download ${esc(step.output)}</a> <a href="${prefix}rejected.csv">Rejected rows</a> <a href="${prefix}report.json">Step snapshot/report</a>`:""}${ready||partial?` <button data-diagnostics="${esc(run.id)}" data-step="${esc(step.id)}">${partial?"Partial diagnostics":"Rejection diagnostics"}</button>`:""}</li>`;
+ }).join("")}</ol></div>`;
+}

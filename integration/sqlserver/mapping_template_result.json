@@ -1,0 +1,17 @@
+{
+  "csv_valid_rows": 1,
+  "csv_leading_zero_preserved": true,
+  "sql_dataset": "dbo.BRANDS",
+  "sql_valid_rows": 20,
+  "export_columns": 4,
+  "same_template_used": true,
+  "template_deleted_before_sql_execution": true,
+  "database_write_statements": 0,
+  "fetchall_calls": 0,
+  "selects": 1,
+  "batch_sizes": [
+    20
+  ],
+  "cursor_closed": true,
+  "connection_closed": true
+}

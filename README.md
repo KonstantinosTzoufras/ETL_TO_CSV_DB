@@ -18,11 +18,38 @@ python -m venv .venv
 Η αρχική οθόνη φορτώνει το συνθετικό παράδειγμα `examples/customers.json`:
 
 1. **Read source columns**: επιθεώρηση πεδίων της πηγής. Σε κενή ροή δημιουργεί αρχικές αντιστοιχίσεις.
-2. **Preview 100 rows**: οι πρώτες 100 εγγραφές εισόδου, μαζί με απορρίψεις. Το demo δίνει **5 συνολικά, 3 έγκυρες, 2 απορρίψεις**.
+2. **Processed Preview (100 rows)**: οι πρώτες 100 εγγραφές εισόδου, μαζί με απορρίψεις. Το demo δίνει **5 συνολικά, 3 έγκυρες, 2 απορρίψεις**.
 3. **Save pipeline**: αποθήκευση και επαναφόρτωση από το sidebar.
 4. **Run & export**: πλήρης εκτέλεση στο παρασκήνιο, λήψη του αποτελέσματος και των απορρίψεων από το ιστορικό.
 
 Η εκτέλεση χρησιμοποιεί την τρέχουσα φόρμα, ακόμη και αν δεν έχει αποθηκευτεί. Κάθε run κρατά αντίγραφο της περιγραφής του. Τα αρχεία και η βάση κατάστασης αποθηκεύονται κάτω από `data/`, το οποίο εξαιρείται από το git.
+
+## Guided source discovery
+
+Open **Discover a source** to browse workspace CSV files or SQL Server schemas and
+tables/views. Inspect metadata, read a bounded **Source Sample**, then choose
+**Use this dataset**. This changes only the draft source; mappings stay unchanged.
+Source Sample shows original values without processing. **Processed Preview**
+continues to use the existing pipeline engine. Samples default to 20 records,
+maximum 100, with a 1 MiB response limit. No database writes or automatic mappings
+are added. See [the discovery contract, policies and acceptance evidence](GUIDED_SOURCE_DISCOVERY.md).
+
+## Processing diagnostics
+
+**Processed Preview** now lets you expand each record and mapped field to compare
+original, transformed and converted values, with recorded errors and source
+positions. **Run history → View rejection diagnostics** reads the completed run's
+existing rejection file without rerunning its source. Historical v1 stages that
+were never recorded are explicitly unavailable. See [Processing Diagnostics Viewer](PROCESSING_DIAGNOSTICS.md).
+
+## Reusable mapping templates
+
+**Reusable mapping templates** stores target-only blueprints as immutable local
+revisions. Apply a revision to an empty draft of the same processing version, bind
+every target explicitly, then generate ordinary pipeline mappings. Optional fields
+still need a binding; NULL and empty-string literals are distinct choices. Required
+lookups are configured in the pipeline, never in the template. See
+[Reusable Mapping Templates](REUSABLE_MAPPING_TEMPLATES.md).
 
 ## Χρήση χωρίς οθόνη
 
@@ -130,3 +157,7 @@ Run `pip install -r requirements.txt` and restart an existing app process.
 Live read-only BRANDS verification passed: 423 rows, 173 columns, exact CSV cell
 representations and no database writes. The temporary data was removed; see the
 [sanitized verification result](integration/sqlserver/brands_stage5_result.json).
+
+Read-only parameterized SQL query sources: see [READ_ONLY_QUERY_SOURCES.md](READ_ONLY_QUERY_SOURCES.md). Query execution is disabled until an administrator approves a restricted connection; existing table/view sources are unchanged.
+
+Ordered independent query exports: see [ORDERED_QUERY_PIPELINES.md](ORDERED_QUERY_PIPELINES.md). One approved connection, sequential steps, explicit stop/continue policy, and separate outputs/diagnostics per step.

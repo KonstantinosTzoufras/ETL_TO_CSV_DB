@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .spec import validate
+from .ordered import validate_definition as validate
 
 
 def now():
@@ -60,7 +60,7 @@ class Store:
 
     def update_run(self, run_id, status, report=None, error=None):
         with self.connect() as db:
-            db.execute("UPDATE runs SET status=?, report=COALESCE(?,report), error=?, finished=? WHERE id=?", (status, json.dumps(report, default=json_default) if report is not None else None, error, now() if status in {"completed", "failed", "interrupted"} else None, run_id))
+            db.execute("UPDATE runs SET status=?, report=COALESCE(?,report), error=?, finished=? WHERE id=?", (status, json.dumps(report, default=json_default) if report is not None else None, error, now() if status in {"completed", "completed_with_errors", "failed", "interrupted"} else None, run_id))
 
     def runs(self):
         with self.connect() as db:

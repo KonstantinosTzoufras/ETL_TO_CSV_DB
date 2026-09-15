@@ -29,6 +29,11 @@ def source_spec(source):
             codecs.lookup(source.get("encoding", "utf-8-sig"))
         except (LookupError, TypeError):
             raise ConfigError("Unknown CSV encoding") from None
+    elif kind == "sqlserver_query":
+        from .queries import query_from_dict
+        keys(source, {"kind", "connection_env", "query"}, "SQL query source")
+        require(isinstance(source.get("connection_env"), str) and re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", source["connection_env"]), "Connection variable must start with ETL_SQL_")
+        query_from_dict(source.get("query"))
     elif kind == "sqlserver":
         keys(source, {"kind", "connection_env", "schema", "table"}, "SQL Server source")
         require(isinstance(source.get("connection_env"), str) and re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", source["connection_env"]), "Connection variable must start with ETL_SQL_")
@@ -85,6 +90,7 @@ def validate(spec):
             lookup = column["lookup"]
             keys(lookup, {"source", "column"}, "lookup")
             source_spec(lookup.get("source"))
+            require(lookup["source"]["kind"] != "sqlserver_query", "Query sources are not supported as lookup dependencies")
             require(isinstance(lookup.get("column"), str) and lookup["column"], f"{name}: lookup column required")
     destination_spec(spec.get("destination"), spec["version"])
     return spec

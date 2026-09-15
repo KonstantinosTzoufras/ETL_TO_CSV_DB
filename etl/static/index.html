@@ -1,33 +1,75 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ETL Studio</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ETL Studio</title><link rel="stylesheet" href="/style.css"><script src="/diagnostics.js" defer></script><script src="/app.js" defer></script><script src="/templates.js" defer></script><script src="/query.js" defer></script><script src="/ordered.js" defer></script></head>
 <body>
 <aside>
   <div class="brand"><span class="logo">E</span><div>ETL Studio<small>LOCAL WORKSPACE</small></div></div>
   <button id="new" class="primary wide">＋ New pipeline</button>
+  <button id="new-ordered" class="wide">New ordered query exports</button>
   <p class="eyebrow">YOUR PIPELINES</p><nav id="pipelines" aria-label="Saved pipelines"><p class="muted">Loading…</p></nav>
   <div class="aside-foot"><span class="dot"></span> Runs on your computer<small>Python edition · v0.1</small></div>
 </aside>
 <main>
   <header><div><p class="eyebrow">WORKSPACE / PIPELINE BUILDER</p><h1>Make your data ready.</h1><p class="muted">Connect a source, shape your fields, and export with confidence.</p></div><span class="badge">LOCAL EDITION</span></header>
   <div id="notice" role="status" aria-live="polite"></div>
-  <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label><button id="save">Save pipeline</button><button id="preview">Preview 100 rows</button><button id="run" class="primary">Run & export →</button></section>
+  <section class="card" id="ordered-editor" hidden>
+    <h2>Ordered query exports</h2><p class="hint">Independent query steps, executed one at a time. Save and Run apply to the whole pipeline. Preview applies only to the selected step.</p>
+    <div class="fields"><label class="grow">Ordered pipeline name<input id="ordered-name" maxlength="120"></label>
+    <label>Shared approved connection<select id="ordered-connection" aria-label="Shared approved connection"><option value="">Select an approved connection</option></select></label><button id="ordered-connections">Refresh shared connections</button>
+    <label>Failure policy<select id="ordered-policy" aria-label="Failure policy"><option value="stop">Stop on failure</option><option value="continue">Continue later steps</option></select></label></div>
+    <div id="ordered-steps"></div><button id="ordered-add">Add independent step</button><button id="ordered-up">Move selected step up</button><button id="ordered-down">Move selected step down</button><button id="ordered-remove">Remove selected step</button>
+    <div class="fields"><label>Selected step ID / output filename<input id="ordered-step-id" maxlength="48"></label><label>Step processing version<select id="ordered-version" aria-label="Step processing version"><option value="2">2 - conservative</option><option value="1">1 - legacy</option></select></label></div>
+    <p id="ordered-output" class="hint"></p>
+  </section>
+  <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label><button id="save">Save pipeline</button><button id="preview">Processed Preview (100 rows)</button><button id="run" class="primary">Run & export →</button></section>
   <div class="flow" aria-label="Pipeline steps"><span><b>01</b> Source</span><i>→</i><span><b>02</b> Map & validate</span><i>→</i><span><b>03</b> Export</span></div>
   <section class="card"><div class="section-head"><div><h2><span class="step">01</span> Data source</h2><p class="muted">Choose where your records come from.</p></div><button id="inspect">Read source columns</button></div>
-    <div class="fields"><label>Source type<select id="source-kind"><option value="csv">CSV file</option><option value="sqlserver">SQL Server</option></select></label>
+    <div class="fields"><label>Source type<select id="source-kind"><option value="csv">CSV file</option><option value="sqlserver">SQL Server</option><option value="sqlserver_query">SQL Query (advanced)</option></select></label>
     <label class="csv grow">File path inside workspace<input id="source-path" placeholder="examples/customers.csv"></label>
     <label class="csv">Delimiter<select id="source-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label>
     <label class="csv">Encoding<input id="encoding" value="utf-8-sig"></label>
     <label class="sql grow" hidden>Connection variable<input id="connection" placeholder="ETL_SQL_MAIN"></label><label class="sql" hidden>Schema<input id="schema" value="dbo"></label><label class="sql" hidden>Table<input id="table" placeholder="Customers"></label></div>
+    <div id="query-editor" hidden>
+      <p class="hint">One parameterized SELECT on an approved read-only connection. Joins and derived columns are explicit SQL. No automatic mapping.</p>
+      <label>Approved query connection<select id="query-connection" aria-label="Approved query connection"><option value="">Select an approved connection</option></select></label><button id="query-connections">Refresh approved connections</button>
+      <label>SELECT query<textarea id="query-sql" aria-label="SELECT query" rows="7" spellcheck="false" placeholder="SELECT Code FROM dbo.Products WHERE Active = ?"></textarea></label>
+      <label>Ordered typed parameters (JSON)<textarea id="query-parameters" aria-label="Ordered typed parameters (JSON)" rows="5" spellcheck="false">[]</textarea></label>
+      <p class="hint">Example: [{"name":"active","type":"bool","value":true}]. Parameters bind to ? in order. Use strings for decimals and large integers. NULL is null; empty text is "". Values are stored in pipeline/run snapshots.</p>
+      <label>Query timeout (seconds, 1-300)<input id="query-timeout" aria-label="Query timeout (seconds, 1-300)" type="number" min="1" max="300" value="60"></label>
+      <button id="query-validate">Validate query</button><button id="query-inspect">Inspect query columns</button>
+      <p class="hint">Inspection executes the query without fetching application rows. Source Sample reads raw values; Processed Preview applies your mappings.</p>
+    </div>
     <p id="source-note" class="hint">Use a CSV inside the project folder. The demo is ready to preview.</p><div id="source-columns" class="chips"></div>
+    <details id="discovery"><summary>Discover a source</summary>
+      <p class="hint">Browse a dataset, inspect its columns and sample original records. Choosing a dataset creates no mappings.</p>
+      <button id="discover-browse">Browse datasets</button><button id="discover-path" class="csv">Inspect CSV path</button>
+      <div id="discovery-browser" hidden><p id="discovery-location"></p><button id="discover-up">Up to parent</button><div id="discovery-folders" class="chips"></div><button id="discover-folders-next" hidden>More folders / schemas</button><div id="discovery-datasets" class="chips"></div><button id="discover-datasets-next" hidden>More datasets</button></div>
+      <div id="discovery-selection" hidden><h3 id="discovery-name"></h3><div id="discovery-metadata" class="table-scroll"></div>
+        <label>Source sample limit (1–100)<input id="discovery-limit" type="number" min="1" max="100" value="20"></label>
+        <button id="discover-sample">Read Source Sample</button><button id="discover-use">Use this dataset</button>
+      </div>
+      <div id="discovery-sample" hidden><h3>Source Sample</h3><p class="hint">Original source values only. No transforms, validation or conversion. SQL row positions are relative to this read; ordering is not guaranteed.</p><p id="discovery-sample-status"></p><div id="discovery-sample-table" class="table-scroll"></div></div>
+    </details>
   </section>
+  <details class="card" id="mapping-templates"><summary>Reusable mapping templates</summary>
+    <p class="hint">Target fields and rules only. Applying a revision copies its rules; you choose every binding. Existing mappings cannot be replaced.</p>
+    <button id="template-new-draft">New empty v2 pipeline</button><button id="template-refresh">List templates</button>
+    <label>Template revision<select id="template-select" aria-label="Template revision"><option value="">Select a revision</option></select></label>
+    <button id="template-load">Load revision into editor</button><button id="template-apply">Apply selected revision</button>
+    <details><summary>Create or revise a template</summary><p id="template-editor-origin" class="hint">New template</p>
+      <div class="fields"><label class="grow">Template name<input id="template-name" maxlength="120"></label><label>Template processing version<select id="template-version"><option value="2">2 — conservative</option><option value="1">1 — legacy</option></select></label></div>
+      <div id="template-fields"></div><button id="template-add-field">Add target field</button><button id="template-create">Create new template</button><button id="template-revise">Save new revision</button>
+    </details>
+  </details>
+  <section class="card" id="template-bindings" hidden><h2>Explicit template bindings</h2><p id="template-copy-name"></p><p class="hint">Required and optional targets both need a source column or an explicit literal. No names are matched automatically.</p><button id="template-read-columns">Read binding columns</button><datalist id="template-source-columns"></datalist><div id="template-binding-fields"></div><p id="template-binding-status" role="status"></p><button id="template-generate">Generate pipeline mappings</button></section>
   <section class="card"><div class="section-head"><div><h2><span class="step">02</span> Map & validate</h2><p class="muted">Each row defines one output field. Failed records go to a separate report.</p></div><button id="add">＋ Add field</button></div>
     <div class="table-scroll"><table class="mapping"><thead><tr><th>OUTPUT NAME</th><th>VALUE FROM</th><th>SOURCE / CONSTANT</th><th>TYPE</th><th>TRANSFORMS</th><th>REQUIRED</th><th>MAX LENGTH</th><th></th></tr></thead><tbody id="columns"></tbody></table></div>
     <datalist id="available-columns"></datalist><p class="hint">Transforms run left to right: trim, lower, upper, empty_to_null. Optional empty values become null.</p>
   </section>
   <section class="card"><div class="section-head"><div><h2><span class="step">03</span> Export destination</h2><p class="muted">Every run gets its own output files and validation report.</p></div></div><div class="fields"><label>File format<select id="format"><option value="csv">CSV · streaming export</option><option value="xlsx">Excel · XLSX</option></select></label><label>CSV export delimiter<select id="output-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label><p class="hint grow">Valid records → output file<br>Rejected records → CSV with field-level reasons</p></div></section>
-  <section class="card" id="results" hidden><div class="section-head"><div><h2>Preview results</h2><p class="muted">A sample of the first 100 input records. Full exports process all records.</p></div></div><div id="counts" class="counts"></div><div id="preview-table" class="table-scroll"></div></section>
+  <section class="card" id="results" hidden><div class="section-head"><div><h2>Processed Preview</h2><p class="muted">A sample of the first 100 input records. Full exports process all records.</p></div></div><div id="counts" class="counts"></div><div id="preview-table" class="table-scroll"></div></section>
   <section class="card"><div class="section-head"><div><h2>Run history</h2><p class="muted">Saved execution snapshots, counts, and downloads.</p></div><button id="refresh">Refresh</button></div><div id="runs"><p class="muted">No runs yet. Preview your pipeline, then run an export.</p></div></section>
+  <section class="card" id="run-diagnostics" hidden><h2>Stored rejection diagnostics</h2><p id="run-diagnostics-name"></p><p class="hint">Reads the completed run's rejection file using its pipeline snapshot. The source is not rerun.</p><div id="run-diagnostics-rows"></div><button id="run-diagnostics-next" hidden>Next rejected rows</button><button id="run-diagnostics-close">Close diagnostics</button></section>
   <details class="card" id="advanced"><summary>Advanced · pipeline definition</summary><p class="hint">Edit or copy the portable definition. Lookup rules can be configured here. Apply changes before previewing or running.</p><label>Pipeline JSON<textarea id="json" rows="18" spellcheck="false"></textarea></label><button id="apply">Apply definition</button></details>
   <footer>ETL Studio <span>Source → Transform → Validate → Export</span></footer>
 </main>

@@ -17,6 +17,10 @@ from .spec import require, validate
 
 def _plain(value):
     """Produce a fresh mutable JSON tree; never share model containers."""
+    from .models import QueryDefinition
+    if isinstance(value, QueryDefinition):
+        from .queries import query_to_dict
+        return query_to_dict(value)
     if isinstance(value, Mapping):
         return {key: _plain(item) for key, item in value.items()}
     if isinstance(value, tuple):
@@ -25,7 +29,11 @@ def _plain(value):
 
 
 def _source_from_dict(value):
-    return SourceDefinition(value["kind"], {key: item for key, item in value.items() if key != "kind"})
+    options = {key: item for key, item in value.items() if key != "kind"}
+    if value["kind"] == "sqlserver_query":
+        from .queries import query_from_dict
+        options["query"] = query_from_dict(options["query"])
+    return SourceDefinition(value["kind"], options)
 
 
 def _source_to_dict(source):

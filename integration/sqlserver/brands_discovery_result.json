@@ -1,0 +1,18 @@
+{
+  "verified_at_utc": "2026-09-15T11:50:20.849322+00:00",
+  "dataset": "dbo.BRANDS",
+  "columns": 173,
+  "declared_types_available": 173,
+  "sample_rows": 20,
+  "stop_reason": "row_limit",
+  "decimal_values_verified": 500,
+  "unicode_values_verified": 20,
+  "data_fetch_sizes": [
+    20
+  ],
+  "fetchall_calls": 0,
+  "selects": 10,
+  "database_write_statements": 0,
+  "all_resources_closed": true,
+  "elapsed_seconds": 2.402
+}

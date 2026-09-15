@@ -104,7 +104,7 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
     lookups = lookup_sets(spec, root)
     report = {"processed": 0, "valid": 0, "invalid": 0, "sample": [], "preview": limit is not None}
     with ExitStack() as stack:
-        stream = stack.enter_context(create_source(pipeline.source, root).open())
+        stream = stack.enter_context(create_source(pipeline.source, root, batch_size=limit if limit and pipeline.source.kind == "sqlserver_query" else 1000).open())
         headers = [column.name for column in stream.schema]
         rows = iter(stream)
         for column in spec["columns"]:

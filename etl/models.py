@@ -44,6 +44,22 @@ class _Immutable:
 
 
 @dataclass(frozen=True, slots=True)
+class QueryParameter(_Immutable):
+    name: str
+    type: str
+    value: str | int | bool | None
+
+
+@dataclass(frozen=True, slots=True)
+class QueryDefinition(_Immutable):
+    format_version: int
+    dialect: str
+    sql: str
+    parameters: tuple[QueryParameter, ...]
+    timeout_seconds: int
+
+
+@dataclass(frozen=True, slots=True)
 class SourceDefinition(_Immutable):
     kind: str
     options: Mapping[str, object] = field(default_factory=dict)
@@ -82,6 +98,25 @@ class Pipeline(_Immutable):
     columns: tuple[FieldMapping, ...]
     destination: Mapping[str, object]
     version: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class QueryExportStep(_Immutable):
+    id: str
+    name: str
+    query: QueryDefinition
+    columns: tuple[FieldMapping, ...]
+    destination: Mapping[str, object]
+    processing_version: int = 2
+
+
+@dataclass(frozen=True, slots=True)
+class OrderedQueryPipeline(_Immutable):
+    name: str
+    connection_env: str
+    steps: tuple[QueryExportStep, ...]
+    failure_policy: str = "stop"
+    format_version: int = 1
 
 
 @dataclass(frozen=True, slots=True)

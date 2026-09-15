@@ -201,6 +201,9 @@ def create_source(spec, root, batch_size=1000) -> Source:
     else:
         source_spec(spec)
         kind = spec["kind"]
+    if kind == "sqlserver_query":
+        from .query_source import SqlServerQuerySource
+        return SqlServerQuerySource(spec, batch_size=batch_size)
     if kind == "csv":
         return CsvSource(spec, root)
     if kind == "sqlserver":
