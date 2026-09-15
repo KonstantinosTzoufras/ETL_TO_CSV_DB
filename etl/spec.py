@@ -1,0 +1,80 @@
+"""Versioned pipeline contract, shared by the CLI, UI and engine."""
+import codecs
+import re
+
+
+class ConfigError(ValueError):
+    pass
+
+
+def require(condition, message):
+    if not condition:
+        raise ConfigError(message)
+
+
+def keys(value, allowed, label):
+    require(isinstance(value, dict), f"{label} must be an object")
+    require(not set(value) - set(allowed), f"Unknown {label} options: {set(value) - set(allowed)}")
+
+
+def source_spec(source):
+    require(isinstance(source, dict), "Source must be an object")
+    kind = source.get("kind")
+    if kind == "csv":
+        keys(source, {"kind", "path", "delimiter", "encoding"}, "CSV source")
+        require(isinstance(source.get("path"), str) and source["path"].strip(), "CSV path is required")
+        delimiter = source.get("delimiter", ";")
+        require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single CSV delimiter")
+        try:
+            codecs.lookup(source.get("encoding", "utf-8-sig"))
+        except (LookupError, TypeError):
+            raise ConfigError("Unknown CSV encoding") from None
+    elif kind == "sqlserver":
+        keys(source, {"kind", "connection_env", "schema", "table"}, "SQL Server source")
+        require(isinstance(source.get("connection_env"), str) and re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", source["connection_env"]), "Connection variable must start with ETL_SQL_")
+        for key in ("schema", "table"):
+            require(isinstance(source.get(key), str) and 0 < len(source[key]) <= 128 and "\x00" not in source[key], f"SQL {key} is required (maximum 128 characters)")
+    else:
+        raise ConfigError("Source kind must be csv or sqlserver")
+
+
+TYPES = {"string", "int", "decimal", "float", "bool", "date", "datetime"}
+TRANSFORMS = {"trim", "upper", "lower", "empty_to_null"}
+
+
+def validate(spec):
+    keys(spec, {"version", "name", "source", "columns", "destination"}, "pipeline")
+    require(type(spec.get("version")) is int and spec["version"] == 1, "Pipeline version must be 1")
+    require(isinstance(spec.get("name"), str) and 0 < len(spec["name"].strip()) <= 120, "Name must contain 1–120 characters")
+    source_spec(spec.get("source"))
+    columns = spec.get("columns")
+    require(isinstance(columns, list) and 0 < len(columns) <= 256, "Choose 1–256 output columns")
+    names = set()
+    for column in columns:
+        keys(column, {"name", "source", "literal", "type", "transforms", "required", "max_length", "lookup"}, "column")
+        name = column.get("name")
+        require(isinstance(name, str) and name.strip() and len(name) <= 128, "Each column needs a name (maximum 128 characters)")
+        require(name.casefold() not in names, f"Duplicate output name: {name}")
+        names.add(name.casefold())
+        require(("source" in column) != ("literal" in column), f"{name}: choose a source OR a literal")
+        if "source" in column:
+            require(isinstance(column["source"], str) and column["source"], f"{name}: source column is required")
+        else:
+            require(column["literal"] is None or type(column["literal"]) in (str, int, float, bool), f"{name}: literal must be a scalar")
+        require(column.get("type", "string") in TYPES, f"{name}: unsupported type")
+        transforms = column.get("transforms", [])
+        require(isinstance(transforms, list) and all(isinstance(t, str) and t in TRANSFORMS for t in transforms), f"{name}: unsupported transform")
+        require(type(column.get("required", False)) is bool, f"{name}: required must be true or false")
+        if "max_length" in column:
+            require(type(column["max_length"]) is int and column["max_length"] > 0, f"{name}: max_length must be positive")
+        if "lookup" in column:
+            lookup = column["lookup"]
+            keys(lookup, {"source", "column"}, "lookup")
+            source_spec(lookup.get("source"))
+            require(isinstance(lookup.get("column"), str) and lookup["column"], f"{name}: lookup column required")
+    destination = spec.get("destination")
+    keys(destination, {"kind", "delimiter"}, "destination")
+    require(destination.get("kind") in {"csv", "xlsx"}, "Destination must be csv or xlsx")
+    delimiter = destination.get("delimiter", ";")
+    require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single export delimiter")
+    return spec

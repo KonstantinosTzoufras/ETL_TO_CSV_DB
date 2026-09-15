@@ -1,0 +1,6 @@
+id;name;email;joined;country
+1;  Maria Papadopoulou  ;MARIA@example.test;2025-04-12;GR
+2;Nikos Georgiou;nikos@example.test;2025-05-01;GR
+003;Eleni Demo;eleni@example.test;2025-02-30;CY
+4;;missing@example.test;2025-03-10;GR
+5;Andreas Demo;andreas@example.test;2025-06-15;CY

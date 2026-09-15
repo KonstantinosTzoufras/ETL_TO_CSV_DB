@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "Customers · clean export",
+  "source": {"kind": "csv", "path": "examples/customers.csv", "delimiter": ";"},
+  "columns": [
+    {"name": "customer_id", "source": "id", "type": "int", "required": true},
+    {"name": "full_name", "source": "name", "type": "string", "transforms": ["trim"], "required": true, "max_length": 100},
+    {"name": "email", "source": "email", "type": "string", "transforms": ["trim", "lower"]},
+    {"name": "joined_on", "source": "joined", "type": "date", "required": true},
+    {"name": "country", "source": "country", "type": "string", "transforms": ["upper"]},
+    {"name": "origin", "literal": "CRM", "type": "string"}
+  ],
+  "destination": {"kind": "csv", "delimiter": ";"}
+}

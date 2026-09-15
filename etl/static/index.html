@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ETL Studio</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<aside>
+  <div class="brand"><span class="logo">E</span><div>ETL Studio<small>LOCAL WORKSPACE</small></div></div>
+  <button id="new" class="primary wide">＋ New pipeline</button>
+  <p class="eyebrow">YOUR PIPELINES</p><nav id="pipelines" aria-label="Saved pipelines"><p class="muted">Loading…</p></nav>
+  <div class="aside-foot"><span class="dot"></span> Runs on your computer<small>Python edition · v0.1</small></div>
+</aside>
+<main>
+  <header><div><p class="eyebrow">WORKSPACE / PIPELINE BUILDER</p><h1>Make your data ready.</h1><p class="muted">Connect a source, shape your fields, and export with confidence.</p></div><span class="badge">LOCAL EDITION</span></header>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label><button id="save">Save pipeline</button><button id="preview">Preview 100 rows</button><button id="run" class="primary">Run & export →</button></section>
+  <div class="flow" aria-label="Pipeline steps"><span><b>01</b> Source</span><i>→</i><span><b>02</b> Map & validate</span><i>→</i><span><b>03</b> Export</span></div>
+  <section class="card"><div class="section-head"><div><h2><span class="step">01</span> Data source</h2><p class="muted">Choose where your records come from.</p></div><button id="inspect">Read source columns</button></div>
+    <div class="fields"><label>Source type<select id="source-kind"><option value="csv">CSV file</option><option value="sqlserver">SQL Server</option></select></label>
+    <label class="csv grow">File path inside workspace<input id="source-path" placeholder="examples/customers.csv"></label>
+    <label class="csv">Delimiter<select id="source-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label>
+    <label class="csv">Encoding<input id="encoding" value="utf-8-sig"></label>
+    <label class="sql grow" hidden>Connection variable<input id="connection" placeholder="ETL_SQL_MAIN"></label><label class="sql" hidden>Schema<input id="schema" value="dbo"></label><label class="sql" hidden>Table<input id="table" placeholder="Customers"></label></div>
+    <p id="source-note" class="hint">Use a CSV inside the project folder. The demo is ready to preview.</p><div id="source-columns" class="chips"></div>
+  </section>
+  <section class="card"><div class="section-head"><div><h2><span class="step">02</span> Map & validate</h2><p class="muted">Each row defines one output field. Failed records go to a separate report.</p></div><button id="add">＋ Add field</button></div>
+    <div class="table-scroll"><table class="mapping"><thead><tr><th>OUTPUT NAME</th><th>VALUE FROM</th><th>SOURCE / CONSTANT</th><th>TYPE</th><th>TRANSFORMS</th><th>REQUIRED</th><th>MAX LENGTH</th><th></th></tr></thead><tbody id="columns"></tbody></table></div>
+    <datalist id="available-columns"></datalist><p class="hint">Transforms run left to right: trim, lower, upper, empty_to_null. Optional empty values become null.</p>
+  </section>
+  <section class="card"><div class="section-head"><div><h2><span class="step">03</span> Export destination</h2><p class="muted">Every run gets its own output files and validation report.</p></div></div><div class="fields"><label>File format<select id="format"><option value="csv">CSV · streaming export</option><option value="xlsx">Excel · XLSX</option></select></label><label>CSV export delimiter<select id="output-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label><p class="hint grow">Valid records → output file<br>Rejected records → CSV with field-level reasons</p></div></section>
+  <section class="card" id="results" hidden><div class="section-head"><div><h2>Preview results</h2><p class="muted">A sample of the first 100 input records. Full exports process all records.</p></div></div><div id="counts" class="counts"></div><div id="preview-table" class="table-scroll"></div></section>
+  <section class="card"><div class="section-head"><div><h2>Run history</h2><p class="muted">Saved execution snapshots, counts, and downloads.</p></div><button id="refresh">Refresh</button></div><div id="runs"><p class="muted">No runs yet. Preview your pipeline, then run an export.</p></div></section>
+  <details class="card" id="advanced"><summary>Advanced · pipeline definition</summary><p class="hint">Edit or copy the portable definition. Lookup rules can be configured here. Apply changes before previewing or running.</p><label>Pipeline JSON<textarea id="json" rows="18" spellcheck="false"></textarea></label><button id="apply">Apply definition</button></details>
+  <footer>ETL Studio <span>Source → Transform → Validate → Export</span></footer>
+</main>
+</body></html>
