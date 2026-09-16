@@ -9,6 +9,7 @@ from .engine import execute
 from .store import Store
 from .ordered import is_ordered, preview_spec
 from .ordered_runs import coordinate, interrupted_report, failed_report
+from .config import load_workspace_env
 
 
 def main():
@@ -29,6 +30,7 @@ def main():
     run_id = None
     store = None
     try:
+        load_workspace_env(root)
         if args.command == "serve":
             from .web import serve
             serve(root, data, args.port)

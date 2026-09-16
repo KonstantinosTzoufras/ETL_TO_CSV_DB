@@ -4,6 +4,8 @@ from .serialization import json_default
 import json
 import logging
 import mimetypes
+import os
+import re
 import secrets
 import shutil
 import threading
@@ -19,7 +21,7 @@ from .discovery import DiscoveryError, dispatch as discover
 from .diagnostics import present_result, rejected_page
 from .queries import QueryError, connection_policies, query_from_dict
 from .sources import inspect_source
-from .spec import ConfigError, require, validate
+from .spec import ConfigError, require, validate, MAX_OUTPUT_COLUMNS
 from .store import Store
 from .templates import TemplateStore, dispatch as template_request
 
@@ -123,12 +125,14 @@ def handler_for(app):
             if not self.trusted():
                 return
             path = urlsplit(self.path).path
-            if path in {"/", "/app.js", "/style.css", "/diagnostics.js", "/templates.js", "/query.js", "/ordered.js"}:
+            if path in {"/", "/app.js", "/style.css", "/diagnostics.js", "/templates.js", "/query.js", "/ordered.js", "/controls.js", "/vendor/jquery-3.7.1.min.js", "/vendor/select2-4.0.13.min.js", "/vendor/select2-4.0.13.min.css"}:
                 asset = ASSETS / ("index.html" if path == "/" else path[1:])
                 self.respond(200, asset.read_bytes(), (mimetypes.guess_type(asset)[0] or "text/plain") + "; charset=utf-8")
             elif path == "/api/bootstrap":
                 sample_path = app.root / "examples" / "customers.json"
-                self.respond(200, {"token": app.token, "example": json.loads(sample_path.read_text(encoding="utf-8-sig")) if sample_path.exists() else None})
+                self.respond(200, {"token": app.token, "example": json.loads(sample_path.read_text(encoding="utf-8-sig")) if sample_path.exists() else None,
+                                   "source_connections": sorted(name for name, value in os.environ.items() if re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", name) and value),
+                                   "output_directory": str(app.data / "runs"), "max_output_columns": MAX_OUTPUT_COLUMNS})
             elif path == "/api/pipelines":
                 self.respond(200, app.store.pipelines())
             elif path == "/api/runs":

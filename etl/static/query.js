@@ -41,6 +41,7 @@ $("query-inspect").onclick=()=>action(async()=>{
   const columns=await discoveryRequest("columns",{source:configured});
   if(generation!==discoveryGeneration)return;
   discoverySource=configured;
+  discoveryColumns=columns.map(m=>m.column.name);
   $("discovery").open=true; $("discovery-name").textContent="SQL Query";
   const known=value=>value===null?"Unknown":String(value);
   $("discovery-metadata").innerHTML=`<table><thead><tr><th>Position</th><th>Name</th><th>Read type</th><th>Nullable</th><th>Precision</th><th>Scale</th></tr></thead><tbody>${columns.map((m,i)=>`<tr>${[i+1,m.column.name,m.column.native_type,m.column.nullable,m.column.precision,m.column.scale].map(v=>`<td>${esc(known(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;

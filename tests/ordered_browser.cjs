@@ -7,12 +7,18 @@ const assert=require('node:assert/strict');
   page.setDefaultTimeout(10000);page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});page.on('dialog',d=>d.accept());
   await page.goto(process.env.ETL_TEST_URL||'http://127.0.0.1:8769');
   await page.waitForFunction(()=>document.querySelector('#name').value.includes('Customers'));
+  await page.getByText('Advanced exports',{exact:true}).click();
   await page.locator('#new-ordered').click();
   assert.equal(await page.locator('#ordered-policy').inputValue(),'stop');
+  assert.equal(await page.evaluate(()=>dirty),false,'Opening ordered drafts must not trigger connection edits');
+  await page.evaluate(()=>window.EditorControls.sync());
+  assert.equal(await page.evaluate(()=>dirty),false,'Select2 refresh must not capture or edit ordered steps');
   await page.locator('#ordered-name').fill('Browser ordered acceptance');
   await page.locator('#ordered-connections').click();
   await page.locator('#notice').filter({hasText:'Shared connection references loaded'}).waitFor();
-  await page.locator('#ordered-connection').selectOption('ETL_SQL_QUERY_TEST');
+  await page.locator('#ordered-connection + .select2 .select2-selection').click();
+  await page.locator('.select2-results__option').getByText('ETL_SQL_QUERY_TEST',{exact:true}).click();
+  assert.equal(await page.locator('#query-connection').inputValue(),'ETL_SQL_QUERY_TEST');
   assert.equal(await page.locator('#query-connection').isDisabled(),true);
   assert.equal(await page.locator('#source-kind').isDisabled(),true);
   async function fillStep(id,name,column,type='string'){
@@ -20,7 +26,11 @@ const assert=require('node:assert/strict');
    await page.locator('#query-sql').fill('SELECT Code, Name, Amount FROM dbo.BRANDS');
    await page.locator('#add').click();
    await page.getByLabel('Field 1 name',{exact:true}).fill('Code');
-   await page.getByLabel('Field 1 value',{exact:true}).fill(column);
+   if(column==='MissingColumn'){
+   // Deliberately invalid historical binding for failure-policy acceptance.
+   await page.getByLabel('Field 1 value',{exact:true}).evaluate((e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));},column);
+  } else {await page.locator('#columns tr').first().locator('.source-select + .select2 .select2-selection').click();
+  await page.locator('.select2-results__option').getByText(column,{exact:true}).click();}
    await page.getByLabel('Field 1 type',{exact:true}).selectOption(type);
   }
   await fillStep('customers','Customers','Code','int');

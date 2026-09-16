@@ -161,3 +161,18 @@ representations and no database writes. The temporary data was removed; see the
 Read-only parameterized SQL query sources: see [READ_ONLY_QUERY_SOURCES.md](READ_ONLY_QUERY_SOURCES.md). Query execution is disabled until an administrator approves a restricted connection; existing table/view sources are unchanged.
 
 Ordered independent query exports: see [ORDERED_QUERY_PIPELINES.md](ORDERED_QUERY_PIPELINES.md). One approved connection, sequential steps, explicit stop/continue policy, and separate outputs/diagnostics per step.
+# Local `.env` startup
+
+Both `python -m etl serve` and `start.ps1` load `.env` from the workspace root.
+Existing process environment variables take precedence. Values are literal: no
+shell evaluation or variable interpolation. Do not commit this file.
+
+An explicit `ETL_SQL_MAIN` connection string is supported. The original
+`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` fields also work: startup creates
+`ETL_SQL_MAIN` from them. `DB_PORT` is optional. `DB_DRIVER` can select an installed
+ODBC driver; otherwise Driver 18 is preferred, with Driver 17 as fallback.
+`DB_ENCRYPT` defaults to `yes`; `DB_TRUST_SERVER_CERTIFICATE` defaults to `no`.
+Set certificate trust explicitly only when appropriate for the intended server.
+Credentials stay on the server; the UI lists reference names only.
+This configuration does not grant query-source approval or assert database
+permissions. Restart after changing `.env`.

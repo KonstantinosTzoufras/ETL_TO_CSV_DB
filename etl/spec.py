@@ -2,6 +2,8 @@
 import codecs
 import re
 
+MAX_OUTPUT_COLUMNS = 4096
+
 
 class ConfigError(ValueError):
     pass
@@ -67,7 +69,7 @@ def validate(spec):
     require(isinstance(spec.get("name"), str) and 0 < len(spec["name"].strip()) <= 120, "Name must contain 1–120 characters")
     source_spec(spec.get("source"))
     columns = spec.get("columns")
-    require(isinstance(columns, list) and 0 < len(columns) <= 256, "Choose 1–256 output columns")
+    require(isinstance(columns, list) and 0 < len(columns) <= MAX_OUTPUT_COLUMNS, f"Choose 1–{MAX_OUTPUT_COLUMNS} output columns")
     names = set()
     for column in columns:
         keys(column, {"name", "source", "literal", "type", "transforms", "required", "max_length", "lookup"}, "column")

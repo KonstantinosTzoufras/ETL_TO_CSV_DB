@@ -49,6 +49,16 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(self.request("POST","/api/preview",{"spec":self.spec},headers)[0],403)
         self.assertEqual(self.request("GET","/api/bootstrap",headers={"Sec-Fetch-Site":"cross-site"})[0],403)
 
+    def test_bootstrap_lists_references_without_credentials(self):
+        with patch.dict("os.environ", {"ETL_SQL_TEST": "secret-password", "ETL_SQL_EMPTY": "", "UNRELATED_SECRET": "other-secret"}, clear=True):
+            status, body = self.request("GET", "/api/bootstrap")
+        self.assertEqual(status, 200)
+        result = json.loads(body)
+        self.assertEqual(result["source_connections"], ["ETL_SQL_TEST"])
+        self.assertEqual(result["output_directory"], str(self.app.data / "runs"))
+        self.assertNotIn(b"secret-password", body)
+        self.assertNotIn(b"other-secret", body)
+
     def test_preview_save_load_and_validation_errors(self):
         status,body=self.request("POST","/api/preview",{"spec":self.spec})
         self.assertEqual(status,200)

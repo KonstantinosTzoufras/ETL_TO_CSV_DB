@@ -3,3 +3,45 @@
 .diagnostic-row{border-bottom:1px solid #dfe7e1;padding:14px 0}.diagnostic-row>summary{font-size:13px}.diagnostic-field{margin:12px 0;padding:12px;border:1px solid #dfe7e1;border-radius:6px}.diagnostic-field summary{white-space:normal;overflow-wrap:anywhere}.diagnostic-field table{min-width:640px;table-layout:fixed}.diagnostic-field pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 Consolas,monospace;margin:8px 0}.diagnostic-type{font-size:11px;font-weight:600}.diagnostic-missing{color:#795a39;font-size:12px}.diagnostic-errors{color:#a54c40;padding-left:20px}.diagnostic-errors p{margin:4px 0}.escaped-value summary{font-size:10px}#runs [data-diagnostics]{display:block;margin:10px 0 0 auto}#run-diagnostics-name{overflow-wrap:anywhere}
 .template-field,.template-binding{border:1px solid #dfe7e1;border-radius:6px;margin:14px 0;padding:14px}.template-field input[type=checkbox]{width:18px;height:18px}.template-binding h3,.template-binding p{overflow-wrap:anywhere}#mapping-templates button{margin:8px 4px 8px 0}#mapping-templates>label{margin-top:12px}
 #ordered-steps{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}#ordered-steps [aria-current=step]{border-color:#165f48;background:#edf5ef}#ordered-editor button{margin:6px 4px 6px 0}.ordered-run{border-bottom:1px solid #dfe7e1;padding:16px 0;overflow-wrap:anywhere}.ordered-run li{margin:14px 0}.ordered-run a{display:inline-block;margin:6px 10px 6px 0}.ordered-run p{margin:6px 0}
+/* Explicit column selection, kept separate from processing. */
+#column-picker{padding:16px;margin:16px 0;background:#f5f9f6;border:1px solid #d4ded6;border-radius:8px}
+.picker-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+#column-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;max-height:260px;overflow:auto;margin:12px 0}
+#column-choices label{display:flex;flex-direction:row;align-items:center;overflow-wrap:anywhere;font-size:13px}
+#column-choices input{width:18px;flex:0 0 18px}
+#discovery-feedback{white-space:pre-wrap;overflow-wrap:anywhere;color:#654e26}
+#export-location{overflow-wrap:anywhere}
+
+#binding-picker{border:1px solid #93b5a0;border-radius:8px;padding:16px;margin:12px 0;background:#f5f9f6} #binding-options{max-height:240px;overflow:auto} [data-choose-source]{display:block;margin-top:5px} [data-choose-source][hidden]{display:none}
+
+/* Bounded work areas and persistent actions keep large schemas navigable. */
+.mapping-name{display:flex;align-items:center;gap:5px}.mapping-name [data-field=name]{flex:1}.mapping-name [data-bulk-select]{flex:0 0 17px}#columns details.transform-control{min-width:160px;max-width:260px}#columns details.transform-control summary{font-size:11px;white-space:normal;overflow-wrap:anywhere}#columns details.transform-control[open] .transform-chain{margin-top:8px}
+#bulk-transforms{border:1px solid #dfe7e1;border-radius:8px;padding:10px;margin-bottom:12px}#bulk-transforms .transform-control{min-width:0;max-width:440px}.bulk-actions{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.bulk-actions button{padding:7px 10px}#columns [data-bulk-select]{min-width:0;width:17px;height:17px;margin:0 7px 6px 0;vertical-align:middle}
+main{padding-bottom:110px;max-width:none}header{margin-bottom:16px}header h1{font-size:26px}
+.titlebar{padding:16px 22px}.titlebar label{max-width:640px}.flow{justify-content:flex-start;gap:8px;margin:16px 0;flex-wrap:wrap}
+.bounded-card{display:flex;flex-direction:column;scroll-margin-top:16px;padding:20px}
+#source-card{max-height:460px}#mapping-card{max-height:620px}
+.section-head{flex:0 0 auto;margin-bottom:12px}.section-body{min-height:0;flex:0 1 auto;overflow:auto;scrollbar-gutter:stable;padding-right:8px;overscroll-behavior:contain}
+#column-picker{padding:12px;margin-top:0}#column-choices{max-height:140px}.mapping th{position:sticky;top:0;z-index:1}.mapping td{padding:8px;vertical-align:middle}
+/* Contain Select2's absolutely positioned hidden native selects within the
+   mapping scroller, so off-screen rows cannot extend the document height. */
+#mapping-card .table-scroll{position:relative;max-height:360px;overflow:auto;border:1px solid #dfe7e1;border-radius:8px}
+#discovery-metadata,#discovery-sample-table,#preview-table,#run-diagnostics-rows,#runs{max-height:360px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+#discovery-datasets,#discovery-folders{max-height:180px;overflow:auto}#source-columns{display:none}
+#mapping-templates[open],#template-bindings,#ordered-editor{max-height:500px;overflow:auto}
+.results-title{margin:20px 0 14px}#results-area{scroll-margin-top:16px}#results-area .card{padding:20px}
+.action-bar{position:fixed;bottom:0;left:244px;right:0;z-index:20;background:#fff;border-top:1px solid #d4ded6;box-shadow:0 -4px 16px #193a2410;display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:14px 4%}
+.action-bar>span{margin-right:auto;color:#65766c;font-size:12px}.action-bar button{min-height:42px}#notice{position:sticky;top:8px;z-index:15}
+[data-choice-backed]:not(.literal-value),[data-transform-backed]{display:none!important}
+.source-select+.select2{min-width:170px;max-width:100%}.select2-container--default .select2-selection--single{height:38px;border:1px solid #d4ded6;border-radius:6px}
+.select2-container--default .select2-selection--single .select2-selection__rendered{line-height:36px;color:#2b3d31;font-size:13px}
+.select2-container--default .select2-selection--single .select2-selection__arrow{height:36px}
+.select2-dropdown{border-color:#93b5a0;box-shadow:0 6px 18px #193a2420;z-index:1050}
+.select2-container--default .select2-results__option--highlighted[aria-selected]{background:#196448}
+.select2-search__field{min-width:0!important}.select2-results__options{max-height:240px!important}.select2-results__option{font-size:13px;overflow-wrap:anywhere}
+.select2-hidden-accessible{min-width:0!important;max-width:1px!important;min-height:0!important}
+#columns tr.enhanced-row [data-choose-source]{display:none}
+.transform-control{min-width:230px}.transform-chain{display:flex;flex-direction:column;gap:5px;margin-bottom:6px}.transform-chip{display:flex;align-items:center;gap:3px;background:#edf5ef;border-radius:5px;padding:3px 5px;font-size:11px}.transform-chip>span{flex:1}.transform-chip button{padding:2px 5px;font-size:12px}
+.transform-add{display:flex;gap:5px}.transform-add select{min-width:130px;padding:6px;font-size:11px}.transform-add button{padding:6px;font-size:10px}
+@media(max-width:1150px){.action-bar{left:200px;padding:12px 25px}.action-bar>span{display:none}}
+@media(max-width:720px){main{padding-bottom:155px}.action-bar{left:0;padding:10px;flex-wrap:wrap;gap:6px}.action-bar button{flex:1;padding:8px;font-size:11px}.bounded-card{padding:14px}#source-card{max-height:480px}#mapping-card{max-height:580px}.source-select+.select2{min-width:0}.mapping .source-select+.select2{min-width:170px}.flow button{padding:8px;font-size:11px}#notice{top:0}.section-body{padding-right:4px}}

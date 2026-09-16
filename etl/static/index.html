@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ETL Studio</title><link rel="stylesheet" href="/style.css"><script src="/diagnostics.js" defer></script><script src="/app.js" defer></script><script src="/templates.js" defer></script><script src="/query.js" defer></script><script src="/ordered.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ETL Studio</title><link rel="stylesheet" href="/vendor/select2-4.0.13.min.css"><link rel="stylesheet" href="/style.css"><script src="/vendor/jquery-3.7.1.min.js" defer></script><script src="/vendor/select2-4.0.13.min.js" defer></script><script src="/diagnostics.js" defer></script><script src="/app.js" defer></script><script src="/templates.js" defer></script><script src="/query.js" defer></script><script src="/ordered.js" defer></script><script src="/controls.js" defer></script></head>
 <body>
 <aside>
   <div class="brand"><span class="logo">E</span><div>ETL Studio<small>LOCAL WORKSPACE</small></div></div>
   <button id="new" class="primary wide">＋ New pipeline</button>
-  <button id="new-ordered" class="wide">New ordered query exports</button>
+  <details><summary>Advanced exports</summary><button id="new-ordered" class="wide">New ordered query exports</button><p class="hint">Multiple independent SQL queries, one output file per step.</p></details>
   <p class="eyebrow">YOUR PIPELINES</p><nav id="pipelines" aria-label="Saved pipelines"><p class="muted">Loading…</p></nav>
   <div class="aside-foot"><span class="dot"></span> Runs on your computer<small>Python edition · v0.1</small></div>
 </aside>
@@ -21,14 +21,14 @@
     <div class="fields"><label>Selected step ID / output filename<input id="ordered-step-id" maxlength="48"></label><label>Step processing version<select id="ordered-version" aria-label="Step processing version"><option value="2">2 - conservative</option><option value="1">1 - legacy</option></select></label></div>
     <p id="ordered-output" class="hint"></p>
   </section>
-  <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label><button id="save">Save pipeline</button><button id="preview">Processed Preview (100 rows)</button><button id="run" class="primary">Run & export →</button></section>
-  <div class="flow" aria-label="Pipeline steps"><span><b>01</b> Source</span><i>→</i><span><b>02</b> Map & validate</span><i>→</i><span><b>03</b> Export</span></div>
-  <section class="card"><div class="section-head"><div><h2><span class="step">01</span> Data source</h2><p class="muted">Choose where your records come from.</p></div><button id="inspect">Read source columns</button></div>
+  <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label></section>
+  <nav class="flow" aria-label="Editor sections"><button data-section-link="source-card">01 Source</button><button data-section-link="mapping-card">02 Map &amp; validate</button><button data-section-link="export-card">03 Export</button><button data-section-link="results-area">04 Preview &amp; history</button></nav>
+  <section class="card bounded-card" id="source-card"><div class="section-head"><div><h2><span class="step">01</span> Data source</h2><p class="muted">Choose where your records come from.</p></div><button id="inspect">Read source columns</button></div><div class="section-body">
     <div class="fields"><label>Source type<select id="source-kind"><option value="csv">CSV file</option><option value="sqlserver">SQL Server</option><option value="sqlserver_query">SQL Query (advanced)</option></select></label>
     <label class="csv grow">File path inside workspace<input id="source-path" placeholder="examples/customers.csv"></label>
     <label class="csv">Delimiter<select id="source-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label>
-    <label class="csv">Encoding<input id="encoding" value="utf-8-sig"></label>
-    <label class="sql grow" hidden>Connection variable<input id="connection" placeholder="ETL_SQL_MAIN"></label><label class="sql" hidden>Schema<input id="schema" value="dbo"></label><label class="sql" hidden>Table<input id="table" placeholder="Customers"></label></div>
+    <label class="csv">Encoding<select id="encoding" aria-label="Encoding"><option value="utf-8-sig">UTF-8 (with BOM support)</option><option value="utf-8">UTF-8</option><option value="cp1253">Greek (Windows-1253)</option><option value="utf-16">UTF-16</option><option value="latin-1">Latin-1</option></select></label>
+    <label class="sql grow" hidden>Configured database connection<select id="connection"><option value="">Select a configured connection</option></select></label><label class="sql" hidden>Schema<input id="schema" value="dbo"></label><label class="sql" hidden>Table<input id="table" list="available-tables" placeholder="Choose a table below"></label><button id="choose-table" class="sql" hidden>Choose table / view</button><datalist id="available-tables"></datalist></div>
     <div id="query-editor" hidden>
       <p class="hint">One parameterized SELECT on an approved read-only connection. Joins and derived columns are explicit SQL. No automatic mapping.</p>
       <label>Approved query connection<select id="query-connection" aria-label="Approved query connection"><option value="">Select an approved connection</option></select></label><button id="query-connections">Refresh approved connections</button>
@@ -39,18 +39,20 @@
       <button id="query-validate">Validate query</button><button id="query-inspect">Inspect query columns</button>
       <p class="hint">Inspection executes the query without fetching application rows. Source Sample reads raw values; Processed Preview applies your mappings.</p>
     </div>
-    <p id="source-note" class="hint">Use a CSV inside the project folder. The demo is ready to preview.</p><div id="source-columns" class="chips"></div>
+    <p class="hint">Choose the source type, then open Discover a source to browse. Manual paths and table names are optional shortcuts.</p><p id="connection-note" class="sql hint" hidden></p><p id="source-note" class="hint">Use a CSV inside the project folder. The demo is ready to preview.</p><div id="source-columns" class="chips"></div>
     <details id="discovery"><summary>Discover a source</summary>
+      <p class="hint">Start here: browse folders or database schemas, choose a file or table, then click Use this dataset. Its columns will be available below.</p>
+      <p id="discovery-feedback" aria-live="polite"></p>
       <p class="hint">Browse a dataset, inspect its columns and sample original records. Choosing a dataset creates no mappings.</p>
       <button id="discover-browse">Browse datasets</button><button id="discover-path" class="csv">Inspect CSV path</button>
-      <div id="discovery-browser" hidden><p id="discovery-location"></p><button id="discover-up">Up to parent</button><div id="discovery-folders" class="chips"></div><button id="discover-folders-next" hidden>More folders / schemas</button><div id="discovery-datasets" class="chips"></div><button id="discover-datasets-next" hidden>More datasets</button></div>
+      <div id="discovery-browser" hidden><p id="discovery-location"></p><label>Search loaded tables / files<input id="dataset-search" type="search"></label><p class="hint">Search covers loaded results. Use More datasets to load additional results.</p><button id="discover-up">Up to parent</button><div id="discovery-folders" class="chips"></div><button id="discover-folders-next" hidden>More folders / schemas</button><div id="discovery-datasets" class="chips"></div><button id="discover-datasets-next" hidden>More datasets</button></div>
       <div id="discovery-selection" hidden><h3 id="discovery-name"></h3><div id="discovery-metadata" class="table-scroll"></div>
         <label>Source sample limit (1–100)<input id="discovery-limit" type="number" min="1" max="100" value="20"></label>
         <button id="discover-sample">Read Source Sample</button><button id="discover-use">Use this dataset</button>
       </div>
       <div id="discovery-sample" hidden><h3>Source Sample</h3><p class="hint">Original source values only. No transforms, validation or conversion. SQL row positions are relative to this read; ordering is not guaranteed.</p><p id="discovery-sample-status"></p><div id="discovery-sample-table" class="table-scroll"></div></div>
     </details>
-  </section>
+  </div></section>
   <details class="card" id="mapping-templates"><summary>Reusable mapping templates</summary>
     <p class="hint">Target fields and rules only. Applying a revision copies its rules; you choose every binding. Existing mappings cannot be replaced.</p>
     <button id="template-new-draft">New empty v2 pipeline</button><button id="template-refresh">List templates</button>
@@ -62,15 +64,36 @@
     </details>
   </details>
   <section class="card" id="template-bindings" hidden><h2>Explicit template bindings</h2><p id="template-copy-name"></p><p class="hint">Required and optional targets both need a source column or an explicit literal. No names are matched automatically.</p><button id="template-read-columns">Read binding columns</button><datalist id="template-source-columns"></datalist><div id="template-binding-fields"></div><p id="template-binding-status" role="status"></p><button id="template-generate">Generate pipeline mappings</button></section>
-  <section class="card"><div class="section-head"><div><h2><span class="step">02</span> Map & validate</h2><p class="muted">Each row defines one output field. Failed records go to a separate report.</p></div><button id="add">＋ Add field</button></div>
+  <section class="card bounded-card" id="mapping-card"><div class="section-head"><div><h2><span class="step">02</span> Map & validate</h2><p class="muted">Each row defines one output field. Failed records go to a separate report.</p></div><button id="add">＋ Add field</button></div><div class="section-body">
+    <details id="column-picker" hidden open><summary>Choose source columns</summary>
+<p id="picker-source" class="hint"></p>
+      <label>Search source columns<input id="column-search" type="search"></label>
+      <div class="picker-actions"><button id="columns-all">Select all columns</button><button id="columns-clear">Clear selection</button><button id="columns-add" class="primary">Add selected columns</button><button id="columns-add-all">Add all unused columns</button></div>
+      <p id="column-selection-count" aria-live="polite"></p><div id="column-choices"></div>
+      <p class="hint">Select all includes columns hidden by search. Added columns stay checked; untick one to remove its mappings after confirmation. Clear selection clears pending additions only. New fields start as string with no rules.</p>
+    </details>
+    <p id="mapping-guidance" class="hint">Choose a dataset above to load its columns, then add the fields you want. Add field creates an individual output or constant.</p>
+    <div class="bulk-actions" id="mapping-selection"><button type="button" id="bulk-all">Select all fields</button><button type="button" id="bulk-text">Select string fields</button><button type="button" id="bulk-none">Deselect all fields</button><button type="button" id="bulk-remove" disabled>Remove selected fields</button><span id="bulk-count" role="status">0 fields selected</span></div>
+    <details id="bulk-transforms"><summary>Bulk transforms</summary>
+      <label>Ordered transforms for selected fields<input id="bulk-chain" value=""></label>
+      <div class="bulk-actions"><button type="button" id="bulk-append">Append transforms</button><button type="button" id="bulk-replace">Replace transforms</button><button type="button" id="bulk-clear">Clear transforms</button><button type="button" id="bulk-undo" disabled>Undo last bulk change</button></div>
+      <p class="hint">Select fields using the checkboxes beside their output names. Append keeps existing transforms first; replace overwrites their chain. Only selected fields change.</p>
+      <p id="bulk-status" role="status"></p>
+    </details>
+    <div id="binding-picker" hidden><h3 id="binding-title">Choose source column</h3><label>Search column names<input id="binding-search" type="search"></label><p id="binding-status" aria-live="polite"></p><div id="binding-options" class="chips"></div><button id="binding-close">Close column chooser</button></div>
     <div class="table-scroll"><table class="mapping"><thead><tr><th>OUTPUT NAME</th><th>VALUE FROM</th><th>SOURCE / CONSTANT</th><th>TYPE</th><th>TRANSFORMS</th><th>REQUIRED</th><th>MAX LENGTH</th><th></th></tr></thead><tbody id="columns"></tbody></table></div>
-    <datalist id="available-columns"></datalist><p class="hint">Transforms run left to right: trim, lower, upper, empty_to_null. Optional empty values become null.</p>
-  </section>
-  <section class="card"><div class="section-head"><div><h2><span class="step">03</span> Export destination</h2><p class="muted">Every run gets its own output files and validation report.</p></div></div><div class="fields"><label>File format<select id="format"><option value="csv">CSV · streaming export</option><option value="xlsx">Excel · XLSX</option></select></label><label>CSV export delimiter<select id="output-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label><p class="hint grow">Valid records → output file<br>Rejected records → CSV with field-level reasons</p></div></section>
+    <datalist id="available-columns"></datalist><p id="processing-note" class="hint"></p>
+  </div></section>
+  <section class="card bounded-card" id="export-card"><div class="section-head"><div><h2><span class="step">03</span> Export &amp; download</h2><p class="muted">Choose the file format. Run &amp; export creates files; download them from Run history.</p></div></div><div class="fields"><label>File format<select id="format"><option value="csv">CSV · streaming export</option><option value="xlsx">Excel · XLSX</option></select></label><label>CSV export delimiter<select id="output-delimiter"><option value=";">Semicolon (;)</option><option value=",">Comma (,)</option><option value="&#9;">Tab</option><option value="|">Pipe (|)</option></select></label><p class="hint grow">Valid records → output file<br>Rejected records → CSV with field-level reasons</p></div></section>
+  <p id="export-location" class="hint">Files are kept in the application run directory. Your browser chooses where downloaded copies are saved.</p>
+  <details class="card" id="advanced"><summary>Advanced · pipeline definition</summary><p class="hint">Edit or copy the portable definition. Lookup rules can be configured here. Apply changes before previewing or running.</p><label>Pipeline JSON<textarea id="json" rows="18" spellcheck="false"></textarea></label><button id="apply">Apply definition</button></details>
+  <div id="results-area"><h2 class="results-title">Preview &amp; run history</h2>
   <section class="card" id="results" hidden><div class="section-head"><div><h2>Processed Preview</h2><p class="muted">A sample of the first 100 input records. Full exports process all records.</p></div></div><div id="counts" class="counts"></div><div id="preview-table" class="table-scroll"></div></section>
   <section class="card"><div class="section-head"><div><h2>Run history</h2><p class="muted">Saved execution snapshots, counts, and downloads.</p></div><button id="refresh">Refresh</button></div><div id="runs"><p class="muted">No runs yet. Preview your pipeline, then run an export.</p></div></section>
   <section class="card" id="run-diagnostics" hidden><h2>Stored rejection diagnostics</h2><p id="run-diagnostics-name"></p><p class="hint">Reads the completed run's rejection file using its pipeline snapshot. The source is not rerun.</p><div id="run-diagnostics-rows"></div><button id="run-diagnostics-next" hidden>Next rejected rows</button><button id="run-diagnostics-close">Close diagnostics</button></section>
-  <details class="card" id="advanced"><summary>Advanced · pipeline definition</summary><p class="hint">Edit or copy the portable definition. Lookup rules can be configured here. Apply changes before previewing or running.</p><label>Pipeline JSON<textarea id="json" rows="18" spellcheck="false"></textarea></label><button id="apply">Apply definition</button></details>
+
+  </div>
+  <div class="action-bar" aria-label="Pipeline actions"><span>Save your setup, check a preview, then export.</span><button id="save">Save pipeline</button><button id="preview">Processed Preview (100 rows)</button><button id="run" class="primary">Run & export →</button></div>
   <footer>ETL Studio <span>Source → Transform → Validate → Export</span></footer>
 </main>
 </body></html>

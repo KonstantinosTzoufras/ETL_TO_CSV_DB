@@ -43,7 +43,12 @@ function moveOrdered(delta){return action(async()=>{captureOrderedStep();const n
 $("ordered-up").onclick=()=>moveOrdered(-1);$("ordered-down").onclick=()=>moveOrdered(1);
 $("ordered-remove").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDraft.steps.length===1)throw new Error("Keep at least one step");orderedDraft.steps.splice(orderedIndex,1);orderedIndex=Math.min(orderedIndex,orderedDraft.steps.length-1);showOrderedStep();dirty=true;});
 $("ordered-connections").onclick=()=>action(async()=>{const data=await api("/api/query/connections",{});const selected=orderedDraft.connection_env;$("ordered-connection").replaceChildren(new Option("Select an approved connection",""));data.connections.forEach(name=>$("ordered-connection").add(new Option(name,name)));if(selected && !data.connections.includes(selected))$("ordered-connection").add(new Option(selected+" (not currently approved)",selected));$("ordered-connection").value=selected;notify(data.connections.length?"Shared connection references loaded; select explicitly.":"No read-only query connections are approved.");});
-$("ordered-connection").onchange=()=>action(async()=>{captureOrderedStep();orderedDraft.connection_env=$("ordered-connection").value;showOrderedStep();dirty=true;});
+// Native listeners respond to user selections, not jQuery's change.select2
+// display refresh (which also invokes an onchange property handler).
+$("ordered-connection").addEventListener("change",()=>{
+ if(!orderedDraft)return;
+ return action(async()=>{captureOrderedStep();orderedDraft.connection_env=$("ordered-connection").value;showOrderedStep();dirty=true;});
+});
 $("ordered-version").onchange=()=>action(async()=>{captureOrderedStep();orderedDraft.steps[orderedIndex].processing_version=Number($("ordered-version").value);showOrderedStep();dirty=true;});
 function orderedRunCard(run){
  const entries=run.report.steps||run.spec.steps.map((s,i)=>({...s,position:i+1,status:"pending"}));

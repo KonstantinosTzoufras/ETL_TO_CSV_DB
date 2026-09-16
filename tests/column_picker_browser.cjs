@@ -1,0 +1,96 @@
+// Isolated browser fixture only: CSV fixture and mocked SQL discovery, no ERP access.
+const {chromium}=require(process.env.ETL_PLAYWRIGHT||'playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+  const browser=await chromium.launch({headless:true,...(process.env.ETL_CHROMIUM?{executablePath:process.env.ETL_CHROMIUM}:{})});
+  try {
+    const page=await browser.newPage({viewport:{width:1440,height:1000}}), errors=[];
+    let acceptRemoval=true;
+    page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>acceptRemoval?d.accept():d.dismiss());
+    await page.route('**/api/bootstrap',async route=>{const response=await route.fetch();const body=await response.json();body.source_connections=['ETL_SQL_TEST'];await route.fulfill({response,json:body});});
+    await page.goto(process.env.ETL_TEST_URL||'http://127.0.0.1:8768');
+    await page.waitForFunction(()=>document.querySelector('#name').value.includes('Customers'));
+    await page.locator('#new').click();
+    await page.locator('#discovery > summary').click();
+    await page.locator('#discover-browse').click();
+    await page.getByRole('button',{name:'examples /',exact:true}).click();
+    await page.locator('#dataset-search').fill('customers');
+    await page.getByRole('button',{name:'customers.csv (file)',exact:true}).click();
+    await page.locator('#discover-use').click();
+    await page.locator('#column-picker').waitFor();
+    assert.equal(await page.locator('#columns tr').count(),0,'Discovery must not create mappings');
+    assert.equal(await page.locator('#column-choices input').count(),5);
+    await page.locator('#column-search').fill('email');
+    assert.equal(await page.locator('#column-choices input').count(),1);
+    await page.locator('#columns-all').click();
+    assert.match(await page.locator('#column-selection-count').innerText(),/5 of 5/,'Select all covers hidden columns');
+    await page.locator('#columns-clear').click();
+    await page.locator('#column-choices input').check();
+    await page.locator('#columns-add').click();
+    assert.equal(await page.locator('#columns tr').count(),1);
+    assert.equal(await page.locator('#columns [data-field=source]').count(),0);
+    assert.equal(await page.locator('#columns [data-field=value]').inputValue(),'email');
+    assert.equal(await page.locator('#column-choices input').isChecked(),true,'Added column remains checked and removable');
+    acceptRemoval=false;
+    await page.locator('#column-choices input').click();
+    assert.equal(await page.locator('#columns tr').count(),1,'Cancelled removal preserves mapping');
+    assert.equal(await page.locator('#column-choices input').isChecked(),true);
+    acceptRemoval=true;
+    await page.locator('#column-choices input').uncheck();
+    assert.equal(await page.locator('#columns tr').count(),0);
+    await page.locator('#column-choices input').check();
+    await page.locator('#columns-add').click();
+    assert.equal(await page.locator('#columns tr').count(),1,'Removed source can be added again');
+    assert.equal(await page.locator('#columns details.transform-control').getAttribute('open'),null,'Per-field editor starts collapsed');
+    assert.ok(await page.locator('#columns tr').evaluate(e=>e.offsetHeight)<90,'Mapping rows stay compact');
+    await page.locator('#column-search').fill('');
+    await page.locator('#columns-all').click();await page.locator('#columns-add').click();
+    assert.equal(await page.locator('#columns tr').count(),5);
+    await page.locator('#column-picker > summary').click();
+    await page.locator('#columns-all').click();await page.locator('#columns-add').click();
+    assert.equal(await page.locator('#columns tr').count(),5,'Repeated add must not duplicate fields');
+    await page.locator('#preview').click();await page.locator('#results').waitFor();
+    assert.match(await page.locator('#counts').innerText(),/5[\s\S]*5[\s\S]*0/);
+    // Reopening a saved pipeline must still offer source choices on demand.
+    await page.locator('#save').click();
+    await page.locator('#notice').filter({hasText:'Pipeline saved'}).waitFor();
+    await page.locator('#pipelines [data-pipeline]').first().click();
+    assert.equal(await page.locator('#column-picker').isVisible(),false);
+    await page.locator('#columns tr').first().locator('.source-select + .select2 .select2-selection').click();
+    await page.locator('.select2-results__option').getByText('email',{exact:true}).click();
+    assert.equal(await page.locator('#columns tr').first().locator('[data-field=value]').inputValue(),'email');
+    await page.locator('#columns tr').first().locator('[data-field=mode]').selectOption('literal');
+    assert.equal(await page.locator('#columns tr').first().locator('[data-field=value]').isVisible(),true);
+    await page.locator('#columns tr').first().locator('[data-field=mode]').selectOption('source');
+    assert.equal(await page.locator('#columns tr').first().locator('.source-select + .select2').isVisible(),true);
+    // Local error and stale-column clearing after editing source settings.
+    await page.locator('#source-path').fill('../outside.csv');
+    assert.equal(await page.locator('#column-picker').isVisible(),false);
+    await page.locator('#discover-path').click();
+    await page.waitForFunction(()=>document.querySelector('#discovery-feedback').textContent.includes('inside the workspace'));
+    assert.equal(await page.locator('#columns tr').count(),5,'Existing mappings preserved');
+    // Mock schema/table discovery and 300 columns; nothing reaches SQL Server.
+    const columns=Array.from({length:300},(_,i)=>({column:{name:`COL_${i}`,native_type:'str',nullable:true,precision:null,scale:null},declared_type:'nvarchar',max_length_bytes:100}));
+    await page.route('**/api/discovery/*',async route=>{
+      const op=route.request().url().split('/').pop();
+      const responses={capabilities:{operations:['list_namespaces','list_datasets']},namespaces:{items:[['dbo']],next_cursor:null},datasets:{items:[{name:'BRANDS',kind:'table',key:'test-brands'}],next_cursor:null},resolve:{connector:'sqlserver',key:'test-brands',namespace:['dbo'],name:'BRANDS'},configure:{kind:'sqlserver',connection_env:'ETL_SQL_TEST',schema:'dbo',table:'BRANDS'},columns};
+      await route.fulfill({json:responses[op]});
+    });
+    await page.locator('#new').click();
+    await page.locator('#source-kind').selectOption('sqlserver');
+    await page.locator('#connection').selectOption('ETL_SQL_TEST');
+    await page.locator('#choose-table').click();
+    await page.getByRole('button',{name:'BRANDS (table)',exact:true}).click();
+    await page.locator('#discover-use').click();
+    await page.locator('#column-picker').waitFor();
+    assert.equal(await page.locator('#table').inputValue(),'BRANDS');
+    await page.locator('#columns-add-all').click();
+    assert.equal(await page.locator('#columns tr').count(),300);
+    assert.equal(await page.locator('#columns tr').last().locator('[data-field=value]').inputValue(),'COL_299');
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:'data/qa/column-picker-mobile.png',fullPage:false});
+    assert.deepEqual(errors,[]);
+    console.log('Column picker acceptance passed: CSV, search, explicit subset/all, duplicate prevention, preview, local error, source changes, mocked SQL/table/300 columns, mobile.');
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

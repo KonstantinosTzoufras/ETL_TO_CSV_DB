@@ -13,7 +13,7 @@ import uuid
 
 from .models import _Immutable, Transform
 from .serialization import pipeline_from_dict, pipeline_to_dict
-from .spec import ConfigError, TYPES, TRANSFORMS, keys, require, validate
+from .spec import ConfigError, TYPES, TRANSFORMS, MAX_OUTPUT_COLUMNS, keys, require, validate
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +44,7 @@ def template_from_dict(value):
     version = value.get("processing_version", 2)
     require(type(version) is int and version in (1, 2), "Template processing version must be 1 or 2")
     require(isinstance(value.get("name"), str) and 0 < len(value["name"].strip()) <= 120, "Template name must contain 1–120 characters")
-    require(isinstance(value.get("fields"), list) and 1 <= len(value["fields"]) <= 256, "Template needs 1–256 target fields")
+    require(isinstance(value.get("fields"), list) and 1 <= len(value["fields"]) <= MAX_OUTPUT_COLUMNS, f"Template needs 1–{MAX_OUTPUT_COLUMNS} target fields")
     fields, names = [], set()
     for item in value["fields"]:
         keys(item, {"output_name", "target_type", "transforms", "required", "max_length", "lookup_required"}, "template field")

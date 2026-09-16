@@ -1,6 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let maxOutputColumns=4096;
 let token, definition, pipelineId = null, saved = [], dirty = false, busy = false, timer;
 const blank = () => ({version:1,name:"Untitled pipeline",source:{kind:"csv",path:"",delimiter:";"},columns:[],destination:{kind:"csv",delimiter:";"}});
 function notify(message, error = false) { $("notice").textContent=message; $("notice").className=error?"error":""; }
@@ -13,10 +14,10 @@ async function api(path, body) {
 async function action(fn) {
   if(busy) return;
   busy=true;
-  const buttons=[...document.querySelectorAll("button")];
-  buttons.forEach(b=>b.disabled=true);
+  const buttons=[...document.querySelectorAll("button")].map(button=>[button,button.disabled]);
+  buttons.forEach(([button])=>button.disabled=true);
   try { await fn(); } catch(error) { notify(error.message,true); }
-  finally { busy=false; buttons.forEach(b=>b.disabled=false); }
+  finally { busy=false; buttons.forEach(([button,disabled])=>button.disabled=disabled); window.EditorControls?.refreshBulk(); }
 }
 function sourceFields() {
   const sql=$("source-kind").value==="sqlserver", query=$("source-kind").value==="sqlserver_query";
@@ -46,14 +47,20 @@ function read(options={}) {
   return structuredClone(definition);
 }
 function renderColumns() {
+  window.EditorControls?.destroyMappings();
+  closeBindingPicker();
   $("columns").innerHTML=definition.columns.map((column,i)=>{
     const literal="literal" in column;
     const input=(key,value,extra="")=>`<input aria-label="Field ${i+1} ${key}" data-field="${key}" value="${esc(value)}" ${extra}>`;
-    return `<tr><td>${input("name",column.name)}</td><td><select aria-label="Field ${i+1} value from" data-field="mode"><option value="source" ${literal?"":"selected"}>Column</option><option value="literal" ${literal?"selected":""}>Constant</option></select></td><td>${input("value",literal?column.literal:column.source,literal?"":"list=available-columns")}${column.lookup?'<span class="chip">Lookup enabled</span>':""}</td><td><select aria-label="Field ${i+1} type" data-field="type">${["string","int","decimal","float","bool","date","datetime"].map(t=>`<option ${(column.type||"string")===t?"selected":""}>${t}</option>`).join("")}</select></td><td>${input("transforms",(column.transforms||[]).join(", "))}</td><td><input aria-label="Field ${i+1} required" data-field="required" type="checkbox" ${column.required?"checked":""}></td><td>${input("max_length",column.max_length??"",'type="number" min="1" step="1"')}</td><td><button class="remove" data-remove="${i}" aria-label="Remove field ${i+1}">×</button></td></tr>`;
+    return `<tr><td>${input("name",column.name)}</td><td><select aria-label="Field ${i+1} value from" data-field="mode"><option value="source" ${literal?"":"selected"}>Column</option><option value="literal" ${literal?"selected":""}>Constant</option></select></td><td>${input("value",literal?column.literal:column.source,literal?"":"list=available-columns")}<button type="button" data-choose-source="${i}" ${literal?"hidden":""}>Choose column</button>${column.lookup?'<span class="chip">Lookup enabled</span>':""}</td><td><select aria-label="Field ${i+1} type" data-field="type">${["string","int","decimal","float","bool","date","datetime"].map(t=>`<option ${(column.type||"string")===t?"selected":""}>${t}</option>`).join("")}</select></td><td>${input("transforms",(column.transforms||[]).join(", "))}</td><td><input aria-label="Field ${i+1} required" data-field="required" type="checkbox" ${column.required?"checked":""}></td><td>${input("max_length",column.max_length??"",'type="number" min="1" step="1"')}</td><td><button class="remove" data-remove="${i}" aria-label="Remove field ${i+1}">×</button></td></tr>`;
   }).join("");
+  renderColumnPicker();
+  window.EditorControls?.mappings();
 }
 function render() {
   resetDiscovery();
+  clearColumnPicker();
+  $("available-tables").replaceChildren();
   function setDelimiter(id,value) {
     const select=$(id);
     if(![...select.options].some(o=>o.value===value)) select.add(new Option(value,value));
@@ -62,10 +69,11 @@ function render() {
   $("name").value=definition.name;
   const s=definition.source;
   $("source-kind").value=s.kind; $("source-path").value=s.path||""; setDelimiter("source-delimiter",s.delimiter||";");
-  $("encoding").value=s.encoding||"utf-8-sig"; $("connection").value=s.connection_env||"ETL_SQL_MAIN"; $("schema").value=s.schema||"dbo"; $("table").value=s.table||"";
+  if(s.encoding && ![...$("encoding").options].some(o=>o.value===s.encoding))$("encoding").add(new Option(s.encoding,s.encoding)); $("encoding").value=s.encoding||"utf-8-sig"; if(s.connection_env && ![...$("connection").options].some(o=>o.value===s.connection_env))$("connection").add(new Option(s.connection_env+" (saved reference; availability checked on use)",s.connection_env)); $("connection").value=s.connection_env||""; $("schema").value=s.schema||"dbo"; $("table").value=s.table||"";
   $("format").value=definition.destination.kind; setDelimiter("output-delimiter",definition.destination.delimiter||";");
+  $("processing-note").textContent=definition.version===2?"Version 2: NULL and empty string are distinct. Transforms run in the order entered; empty_to_null is explicit.":"Version 1 (legacy): optional empty strings become NULL. Saved pipeline processing behavior is preserved.";
   if(typeof renderQuery==="function")renderQuery(s);
-  sourceFields(); renderColumns(); $("json").value=JSON.stringify(definition,null,2);
+  sourceFields(); renderColumns(); window.EditorControls?.sync(); $("json").value=JSON.stringify(definition,null,2);
   if(typeof renderOrderedMode==="function")renderOrderedMode();
   $("results").hidden=true; $("source-columns").replaceChildren(); $("available-columns").replaceChildren();
 }
@@ -97,7 +105,7 @@ async function refreshRuns() {
   clearTimeout(timer);
   if(runs.some(r=>["queued","running"].includes(r.status))) timer=setTimeout(()=>refreshRuns().catch(e=>notify(e.message,true)),1500);
 }
-document.addEventListener("input",event=>{if(event.target.closest("main") && event.target.id!=="json") dirty=true;if(event.target.closest("#columns") && event.target.dataset.field==="value")event.target.dataset.edited="true";});
+document.addEventListener("input",event=>{if(event.target.closest("main") && event.target.id!=="json" && !event.target.closest('#bulk-transforms') && !event.target.dataset.bulkSelect) dirty=true;if(event.target.closest("#columns") && event.target.dataset.field==="value")event.target.dataset.edited="true";});
 window.addEventListener("beforeunload",event=>{if(dirty){event.preventDefault();event.returnValue="";}});
 $("source-kind").onchange=()=>{sourceFields();dirty=true;};
 $("new").onclick=()=>{if(!dirty||confirm("Discard unsaved changes and create a new pipeline?"))openDefinition(blank());};
@@ -106,11 +114,21 @@ $("columns").onclick=event=>{const button=event.target.closest("[data-remove]");
 $("add").onclick=()=>action(async()=>{read();definition.columns.push({name:"",source:"",type:"string"});renderColumns();dirty=true;});
 $("inspect").onclick=()=>action(async()=>{
   if(typeof templateIsPending==="function" && templateIsPending())throw new Error("Use Read binding columns in the template binding panel; mappings stay explicit.");
-  const result=await api("/api/columns",{source:source()});
+  if($("source-kind").value==="sqlserver" && !$("table").value){
+    $("discovery").open=true;
+    if(!$("connection").value)throw new Error("Select a configured database connection first.");
+    await browseDiscovery($("schema").value?[$("schema").value]:[]);
+    notify("Choose a table below, then Use this dataset to load its columns.");
+    $("discovery-browser").scrollIntoView({behavior:"smooth",block:"center"});
+    return;
+  }
+  const candidate=source(), generation=discoveryGeneration;
+  const result=await api("/api/columns",{source:candidate});
+  if(generation!==discoveryGeneration)return;
   $("available-columns").innerHTML=result.columns.map(c=>`<option value="${esc(c)}">`).join("");
   $("source-columns").innerHTML=result.columns.map(c=>`<span class="chip">${esc(c)}</span>`).join("");
-  read();if(!definition.columns.length && definition.source.kind!=="sqlserver_query"){definition.columns=result.columns.map(name=>({name,source:name,type:"string"}));renderColumns();dirty=true;}
-  notify(`${result.columns.length} source columns available. Existing mappings have been preserved.`);
+  read(); setColumnPicker(result.columns,candidate);
+  notify(`${result.columns.length} source columns available. Select some or all, then Add selected columns.`);
 });
 $("save").onclick=()=>action(async()=>{const result=await api("/api/pipelines",{id:pipelineId,spec:workingDefinition()});pipelineId=result.id;dirty=false;await refreshSaved();notify("Pipeline saved. You can load it from the sidebar.");});
 $("preview").onclick=()=>action(async()=>{const report=typeof orderedDraft!=="undefined" && orderedDraft?await api("/api/ordered/preview",{spec:workingDefinition(),step_id:orderedDraft.steps[orderedIndex].id,diagnostics:true}):await api("/api/preview",{spec:read(),diagnostics:true});preview(report);notify("Preview complete. No export files were created.");});
@@ -119,7 +137,7 @@ $("refresh").onclick=()=>action(refreshRuns);
 $("advanced").ontoggle=()=>{if($("advanced").open){try{$("json").value=JSON.stringify(workingDefinition(),null,2);}catch(error){$("advanced").open=false;notify(error.message,true);}}};
 $("json").oninput=()=>{dirty=true;};
 $("apply").onclick=()=>action(async()=>{read();const next=JSON.parse($("json").value);await api("/api/validate",{spec:next});openDefinition(next,pipelineId);dirty=true;notify("Definition applied. Save the pipeline to keep these changes.");});
-(async()=>{try{const bootstrap=await api("/api/bootstrap");token=bootstrap.token;openDefinition(bootstrap.example||blank());await refreshSaved();await refreshRuns();}catch(error){notify(error.message,true);}})();
+(async()=>{try{const bootstrap=await api("/api/bootstrap");token=bootstrap.token; maxOutputColumns=bootstrap.max_output_columns||4096; (bootstrap.source_connections||[]).forEach(name=>$("connection").add(new Option(name,name))); $("connection-note").textContent=(bootstrap.source_connections||[]).length?"Choose a configured reference, then Browse datasets to select a schema and table. Query approval is separate.":"No database connections are configured in this server process. Add an ETL_SQL_* connection or DB_HOST/DB_NAME/DB_USER/DB_PASS to the workspace .env and restart. CSV browsing is available."; if(bootstrap.output_directory)$("export-location").textContent=`Generated files: ${bootstrap.output_directory} (one folder per run). Download completed files from Run history; your browser chooses where downloaded copies are saved.`; openDefinition(bootstrap.example||blank());await refreshSaved();await refreshRuns();}catch(error){notify(error.message,true);}})();
 
 function displayValue(value) { return value && typeof value === "object" && "$type" in value ? value.value : value; }
 
@@ -143,18 +161,32 @@ $("run-diagnostics-next").onclick=()=>action(()=>loadRejections(diagnosticRun,di
 $("run-diagnostics-close").onclick=()=>{diagnosticGeneration++;$("run-diagnostics").hidden=true;};
 
 // Discovery edits only the source definition. Processing remains in /api/preview.
-let discoveryGeneration=0, discoveryNamespace=[], discoveryFolders=[], discoveryDatasets=[], discoverySource=null;
+let discoveryGeneration=0, discoveryNamespace=[], discoveryFolders=[], discoveryDatasets=[], discoverySource=null, discoveryColumns=[];
 let foldersCursor=null, datasetsCursor=null;
 function resetDiscovery() {
   discoveryGeneration++;
   discoverySource=null;
+  discoveryColumns=[];
+  $("discovery-feedback").textContent="";
   for(const id of ["discovery-browser","discovery-selection","discovery-sample"]) $(id).hidden=true;
 }
 const discoveryInputs=new Set(["source-kind","source-path","source-delimiter","encoding","connection","schema","table","query-connection","query-sql","query-parameters","query-timeout"]);
-document.addEventListener("input",event=>{if(discoveryInputs.has(event.target.id))resetDiscovery();});
-document.addEventListener("change",event=>{if(discoveryInputs.has(event.target.id))resetDiscovery();});
+function sourceEdited(event) { if(["source-kind","connection","schema"].includes(event.target.id))$("available-tables").replaceChildren(); if(discoveryInputs.has(event.target.id)){resetDiscovery();clearColumnPicker();$("available-columns").replaceChildren();$("source-columns").replaceChildren();$("mapping-guidance").textContent="Source settings changed. Reload columns and review existing mappings before preview or export.";} }
+document.addEventListener("input",sourceEdited);
+document.addEventListener("change",sourceEdited);
 function discoveryContext() { return {connector:$("source-kind").value,connection_env:$("source-kind").value==="sqlserver_query"?$("query-connection").value:$("connection").value}; }
-async function discoveryRequest(operation, values={}) { return api(`/api/discovery/${operation}`,{...discoveryContext(),...values}); }
+async function discoveryRequest(operation, values={}) {
+  const generation=discoveryGeneration;
+  $("discovery-feedback").textContent="Loading source information…";
+  try {
+    const result=await api(`/api/discovery/${operation}`,{...discoveryContext(),...values});
+    if(generation===discoveryGeneration)$("discovery-feedback").textContent="Source information loaded.";
+    return result;
+  } catch(error) {
+    if(generation===discoveryGeneration)$("discovery-feedback").textContent=error.message;
+    throw error;
+  }
+}
 async function browseDiscovery(namespace=[], more=null) {
   const generation=++discoveryGeneration;
   discoverySource=null; $("discovery-selection").hidden=true; $("discovery-sample").hidden=true;
@@ -168,14 +200,15 @@ async function browseDiscovery(namespace=[], more=null) {
     ? await discoveryRequest("datasets",{namespace,cursor:more?datasetsCursor:null}) : null;
   if(generation!==discoveryGeneration)return;
   discoveryNamespace=namespace;
-  if(!more||folders){discoveryFolders=folders?.items||[];foldersCursor=folders?.next_cursor||null;}
-  if(!more||datasets){discoveryDatasets=datasets?.items||[];datasetsCursor=datasets?.next_cursor||null;}
+  if(!more||folders){discoveryFolders=more?[...discoveryFolders,...(folders?.items||[])]:folders?.items||[];foldersCursor=folders?.next_cursor||null;}
+  if(!more||datasets){discoveryDatasets=more?[...discoveryDatasets,...(datasets?.items||[])]:datasets?.items||[];datasetsCursor=datasets?.next_cursor||null;}
+  if(!more)$("dataset-search").value="";
   $("discovery-browser").hidden=false;
   $("discovery-location").textContent=namespace.join(" / ")||(sql?"Configured database schemas":"Workspace folders and CSV files");
   $("discover-up").hidden=!namespace.length;
   $("discover-folders-next").hidden=!foldersCursor; $("discover-datasets-next").hidden=!datasetsCursor;
   $("discovery-folders").innerHTML=discoveryFolders.map((n,i)=>`<button data-folder="${i}">${esc(n[n.length-1])} /</button>`).join("");
-  $("discovery-datasets").innerHTML=discoveryDatasets.map((d,i)=>`<button data-dataset="${i}">${esc(d.name)} (${esc(d.kind)})</button>`).join("")||'<p class="hint">No datasets on this page.</p>';
+  renderDatasets();
 }
 async function selectDiscovery(locator) {
   const generation=++discoveryGeneration;
@@ -188,6 +221,7 @@ async function selectDiscovery(locator) {
   const columns=await discoveryRequest("columns",{source:configured});
   if(generation!==discoveryGeneration)return;
   discoverySource=configured;
+  discoveryColumns=columns.map(m=>m.column.name);
   $("discovery-name").textContent=[...dataset.namespace,dataset.name].join(" / ");
   const known=value=>value===null?"Unknown":String(value);
   $("discovery-metadata").innerHTML=`<table><thead><tr><th>Position</th><th>Name</th><th>Read type</th><th>Declared type</th><th>Nullable</th><th>Precision</th><th>Scale</th><th>Max bytes (−1 = max)</th></tr></thead><tbody>${columns.map((m,i)=>`<tr>${[i+1,m.column.name,m.column.native_type,m.declared_type,m.column.nullable,m.column.precision,m.column.scale,m.max_length_bytes].map(v=>`<td>${esc(known(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
@@ -220,6 +254,126 @@ $("discover-sample").onclick=()=>action(async()=>{
 $("discover-use").onclick=()=>action(async()=>{
   if(!discoverySource)return;
   const selected=structuredClone(discoverySource);
+  const names=[...discoveryColumns];
   read({allowTemplateDraft:true}); definition.source=selected; render(); dirty=true;
-  notify("Source selected. Existing mappings are unchanged; add or review mappings before Processed Preview.");
+  setColumnPicker(names,selected);
+  $("column-picker").scrollIntoView({behavior:"smooth",block:"center"});
+  notify("Source selected. Choose some or all columns below, then Add selected columns. Existing mappings are unchanged.");
+});
+
+function renderDatasets() {
+  if($("source-kind").value==="sqlserver")$("available-tables").innerHTML=discoveryDatasets.map(d=>`<option value="${esc(d.name)}">`).join("");
+  const search=$("dataset-search").value.toLocaleLowerCase();
+  $("discovery-datasets").innerHTML=discoveryDatasets.map((d,i)=>({d,i})).filter(({d})=>d.name.toLocaleLowerCase().includes(search)).map(({d,i})=>`<button data-dataset="${i}">${esc(d.name)} (${esc(d.kind)})</button>`).join("")||'<p class="hint">No matching datasets loaded. Choose a schema/folder or load more results.</p>';
+}
+$("dataset-search").oninput=renderDatasets;
+let pickerColumns=[], pickerSelected=new Set();
+function clearColumnPicker() {
+  pickerColumns=[]; pickerSelected.clear(); closeBindingPicker(); $("column-picker").hidden=true;
+}
+function setColumnPicker(names,candidate) {
+  $("column-picker").open=true; pickerColumns=[...new Set(names)]; pickerSelected.clear(); $("column-search").value="";
+  $("picker-source").textContent=candidate.kind==="csv"?candidate.path:candidate.kind==="sqlserver"?`${candidate.schema}.${candidate.table}`:"Selected SQL query";
+  $("available-columns").innerHTML=pickerColumns.map(name=>`<option value="${esc(name)}">`).join("");
+  $("mapping-guidance").textContent="Choose columns above. Existing mappings are preserved; review their source bindings if you changed datasets.";
+  renderColumnPicker();
+  if(pickerColumns.length && pickerColumns.every(name=>definition.columns.some(column=>column.source===name)))$("column-picker").open=false;
+}
+function renderColumnPicker() {
+  $("column-picker").hidden=!pickerColumns.length;
+  const used=new Set((definition?.columns||[]).filter(c=>"source" in c).map(c=>c.source));
+  for(const name of used)pickerSelected.delete(name);
+  const search=$("column-search").value.toLocaleLowerCase();
+  $("column-choices").innerHTML=pickerColumns.map((name,i)=>({name,i})).filter(({name})=>name.toLocaleLowerCase().includes(search)).map(({name,i})=>`<label><input type="checkbox" data-pick="${i}" ${used.has(name)||pickerSelected.has(name)?"checked":""}>${esc(name)}${used.has(name)?" (added; untick to remove)":""}</label>`).join("")||'<p>No matching columns.</p>';
+  $("column-selection-count").textContent=`${pickerSelected.size} of ${pickerColumns.length} columns selected · ${pickerColumns.filter(name=>used.has(name)).length} already added`;
+}
+$("column-search").oninput=renderColumnPicker;
+$("column-choices").onchange=event=>action(async()=>{
+  const i=event.target.dataset.pick;if(i===undefined)return;
+  const name=pickerColumns[Number(i)];read();
+  const affected=definition.columns.filter(column=>column.source===name);
+  if(!event.target.checked && affected.length){
+    if(confirm(`Remove ${affected.length} mapping(s) using source column "${name}"? Their configured rules will also be removed.`)){
+      definition.columns=definition.columns.filter(column=>column.source!==name);
+      pickerSelected.delete(name);renderColumns();dirty=true;
+      notify(`Removed ${affected.length} mapping(s). Other fields and rules are unchanged.`);
+    }
+  }else if(event.target.checked)pickerSelected.add(name);else pickerSelected.delete(name);
+  renderColumnPicker();
+});
+$("columns-all").onclick=()=>action(async()=>{read();pickerSelected=new Set(pickerColumns);renderColumnPicker();});
+$("columns-clear").onclick=()=>{pickerSelected.clear();renderColumnPicker();};
+function addPickedColumns() {
+  read();
+  const used=new Set(definition.columns.filter(c=>"source" in c).map(c=>c.source));
+  const selected=pickerColumns.filter(name=>pickerSelected.has(name)&&!used.has(name));
+  if(!selected.length){notify("Select at least one unused source column.");return;}
+  if(definition.columns.length+selected.length>maxOutputColumns)throw new Error(`A pipeline supports up to ${maxOutputColumns} output fields. Select fewer columns.`);
+  const taken=new Set(definition.columns.map(c=>c.name.toLowerCase()));
+  for(const source of selected){let name=source,n=2;while(taken.has(name.toLowerCase()))name=`${source}_${n++}`;taken.add(name.toLowerCase());definition.columns.push({name,source,type:"string"});}
+  pickerSelected.clear();renderColumns();dirty=true;
+  if(pickerColumns.every(name=>definition.columns.some(c=>c.source===name))){$("column-picker").open=false;$("mapping-card").querySelector(".section-body").scrollTop=0;}
+  notify(`${selected.length} output fields added in source order. Review types and rules, then Processed Preview.`);
+}
+$("columns-add").onclick=()=>action(async()=>addPickedColumns());
+$("columns-add-all").onclick=()=>action(async()=>{read();pickerSelected=new Set(pickerColumns);addPickedColumns();});
+
+let bindingRow=null;
+function closeBindingPicker(){bindingRow=null;$("binding-picker").hidden=true;}
+async function loadAvailableColumns(){
+  const candidate=source(), generation=discoveryGeneration;
+  if(candidate.kind==="sqlserver" && !candidate.table){
+    $("discovery").open=true;
+    throw new Error("Choose a table first: Browse datasets ? schema ? table ? Use this dataset.");
+  }
+  const result=await api("/api/columns",{source:candidate});
+  if(generation!==discoveryGeneration)return false;
+  setColumnPicker(result.columns,candidate);
+  return true;
+}
+function renderBindingOptions(){
+  const query=$("binding-search").value.toLocaleLowerCase();
+  const matches=pickerColumns.map((name,index)=>({name,index})).filter(({name})=>name.toLocaleLowerCase().includes(query));
+  $("binding-options").innerHTML=matches.slice(0,100).map(({name,index})=>`<button data-bind-column="${index}">${esc(name)}</button>`).join("");
+  $("binding-status").textContent=matches.length?`${matches.length} matching columns${matches.length>100?"; showing first 100. Narrow the search to find another column.":""}`:"No matching columns.";
+}
+$("columns").addEventListener("click",event=>{
+  const button=event.target.closest("[data-choose-source]");
+  if(!button)return;
+  action(async()=>{
+    read();
+    const row=button.closest("tr");
+    if(!pickerColumns.length && !await loadAvailableColumns())return;
+    if(!row.isConnected)return;
+    bindingRow=row;$("binding-search").value="";
+    $("binding-title").textContent=`Choose source for ${row.querySelector('[data-field="name"]').value||"unnamed output field"}`;
+    renderBindingOptions();$("binding-picker").hidden=false;
+    $("binding-picker").scrollIntoView({behavior:"smooth",block:"center"});$("binding-search").focus();
+  });
+});
+$("binding-search").oninput=renderBindingOptions;
+$("binding-close").onclick=closeBindingPicker;
+$("binding-search").onkeydown=event=>{if(event.key==="Escape")closeBindingPicker();};
+$("binding-options").onclick=event=>{
+  const button=event.target.closest("[data-bind-column]");
+  if(!button || !bindingRow?.isConnected)return;
+  const input=bindingRow.querySelector('[data-field="value"]');
+  input.value=pickerColumns[Number(button.dataset.bindColumn)];input.dataset.edited="true";
+  dirty=true;read();renderColumnPicker();closeBindingPicker();input.focus();
+};
+$("columns").addEventListener("change",event=>{
+  if(event.target.dataset.field!=="mode")return;
+  const row=event.target.closest("tr"), literal=event.target.value==="literal";
+  row.querySelector('[data-choose-source]').hidden=literal;
+  const input=row.querySelector('[data-field="value"]');
+  if(literal)input.removeAttribute("list");else input.setAttribute("list","available-columns");
+  closeBindingPicker();
+});
+
+$("choose-table").onclick=()=>action(async()=>{
+  $("discovery").open=true;
+  if(!$("connection").value)throw new Error("Select a configured database connection first.");
+  await browseDiscovery($("schema").value?[$("schema").value]:[]);
+  $("discovery-browser").scrollIntoView({behavior:"smooth",block:"center"});
+  $("dataset-search").focus();
 });
