@@ -1,4 +1,4 @@
-﻿const {chromium}=require(process.env.ETL_PLAYWRIGHT||'playwright');
+const {chromium}=require(process.env.ETL_PLAYWRIGHT||'playwright');
 const assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.ETL_CHROMIUM?{executablePath:process.env.ETL_CHROMIUM}:{})});

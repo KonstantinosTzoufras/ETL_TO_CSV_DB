@@ -1,4 +1,4 @@
-﻿"""Authored query datasets, separate from table/view catalog discovery."""
+"""Authored query datasets, separate from table/view catalog discovery."""
 from dataclasses import replace
 from pathlib import Path
 

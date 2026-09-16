@@ -19,7 +19,9 @@ class StartupConfigTests(unittest.TestCase):
         self.assertEqual(self.load(None), {})
 
     def test_literal_password_and_odbc_escaping(self):
-        env = self.load('DB_HOST=local\nDB_PORT=1433\nDB_NAME=test\nDB_USER=reader\nDB_PASS="a;PWD=x}#${TOKEN}\\path"\nALLOW_TEST_DB_LOGIN=true\n')
+        # The unrelated key is carried through literally and grants nothing:
+        # query-source approval comes only from ETL_QUERY_CONNECTIONS.
+        env = self.load('DB_HOST=local\nDB_PORT=1433\nDB_NAME=test\nDB_USER=reader\nDB_PASS="a;PWD=x}#${TOKEN}\\path"\nUNRELATED_SETTING=true\n')
         self.assertIn('SERVER={local,1433}', env['ETL_SQL_MAIN'])
         self.assertIn('PWD={a;PWD=x}}#${TOKEN}}\\path}', env['ETL_SQL_MAIN'])
         self.assertIn('TrustServerCertificate={no}', env['ETL_SQL_MAIN'])

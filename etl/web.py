@@ -55,12 +55,20 @@ class Application:
             preflight(model, self.root, self.data / "runs")
             spec = ordered_to_dict(model)  # Own the queued snapshot, not caller containers.
         require(self.slots.acquire(blocking=False), "Eight runs are already queued or running; wait for one to finish")
+        run_id = None
         try:
             run_id = self.store.create_run(spec)
             self.executor.submit(self.work, run_id, spec)
             return run_id
         except Exception:
             self.slots.release()
+            # A stored run that no worker ever received would stay queued until
+            # the next restart, so record the outcome before reporting the error.
+            if run_id is not None:
+                try:
+                    self.fail(run_id, spec, "The run was stored but never started.")
+                except Exception:
+                    logging.error("Run %s could not be recorded as failed", run_id)
             raise
 
     def fail(self, run_id, spec, message):

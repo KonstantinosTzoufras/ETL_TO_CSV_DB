@@ -1,4 +1,4 @@
-﻿// Preserve untouched SQL literals across textarea CRLF normalization.
+// Preserve untouched SQL literals across textarea CRLF normalization.
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 test('query editor preserves exact SQL and typed parameter snapshot until explicitly edited',()=>{
  const elements=new Map();

@@ -1,4 +1,4 @@
-﻿"""Isolated query browser server. pyodbc.connect is replaced for its lifetime."""
+"""Isolated query browser server. pyodbc.connect is replaced for its lifetime."""
 from pathlib import Path
 import shutil
 import tempfile

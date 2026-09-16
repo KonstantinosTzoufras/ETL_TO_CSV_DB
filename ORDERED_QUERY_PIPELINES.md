@@ -1,4 +1,4 @@
-﻿# Ordered Query Export Pipelines
+# Ordered Query Export Pipelines
 
 A bounded, separate pipeline kind for 1-20 independent SELECT query exports on
 one approved SQL Server connection reference. No source, transform, conversion,

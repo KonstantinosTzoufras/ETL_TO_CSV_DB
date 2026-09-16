@@ -324,7 +324,7 @@ async function loadAvailableColumns(){
   const candidate=source(), generation=discoveryGeneration;
   if(candidate.kind==="sqlserver" && !candidate.table){
     $("discovery").open=true;
-    throw new Error("Choose a table first: Browse datasets ? schema ? table ? Use this dataset.");
+    throw new Error("Choose a table first: Browse datasets → schema → table → Use this dataset.");
   }
   const result=await api("/api/columns",{source:candidate});
   if(generation!==discoveryGeneration)return false;

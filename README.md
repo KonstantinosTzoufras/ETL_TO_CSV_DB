@@ -145,7 +145,7 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 Τεκμηρίωση εξαρτήσεων: [pyodbc](https://github.com/mkleehammer/pyodbc), [openpyxl write-only mode](https://openpyxl.readthedocs.io/en/latest/optimized.html).
 
 
-## Stage 5 ? Export policies
+## Stage 5 — Export policies
 
 See [ARCHITECTURE_STAGE_5.md](ARCHITECTURE_STAGE_5.md) for the current versioned
 output contract. V1 output policies remain compatible. V2 defaults to `\N` for
