@@ -133,7 +133,7 @@ def handler_for(app):
             if not self.trusted():
                 return
             path = urlsplit(self.path).path
-            if path in {"/", "/app.js", "/style.css", "/diagnostics.js", "/templates.js", "/query.js", "/ordered.js", "/controls.js", "/vendor/jquery-3.7.1.min.js", "/vendor/select2-4.0.13.min.js", "/vendor/select2-4.0.13.min.css"}:
+            if path in {"/", "/app.js", "/style.css", "/diagnostics.js", "/templates.js", "/query.js", "/ordered.js", "/controls.js", "/favicon.svg", "/vendor/jquery-3.7.1.min.js", "/vendor/select2-4.0.13.min.js", "/vendor/select2-4.0.13.min.css"}:
                 asset = ASSETS / ("index.html" if path == "/" else path[1:])
                 self.respond(200, asset.read_bytes(), (mimetypes.guess_type(asset)[0] or "text/plain") + "; charset=utf-8")
             elif path == "/api/bootstrap":

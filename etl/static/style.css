@@ -1165,7 +1165,7 @@ header h1 {
   white-space: nowrap;
 }
 .stage-flow li+li::before {
-  content: "92";
+  content: "→";
   color: #9fb6a8;
   margin-right: 2px;
 }
@@ -1206,4 +1206,26 @@ header h1 {
 }
 .stage-note .hint {
   margin-top: 6px;
+}
+
+/* ONE SCROLL REGION
+   -----------------
+   Map & validate had two nested scrollbars. The table now absorbs the leftover
+   height instead of being fixed, so the card body never needs its own. */
+#mapping-card .section-body {
+  display: flex;
+  flex-direction: column;
+  scrollbar-gutter: auto;
+  padding-right: 0;
+}
+#mapping-card .section-body > * {
+  flex: 0 0 auto;
+}
+#mapping-card .table-scroll {
+  flex: 1 1 auto;
+}
+/* Only once rows exist: the sticky header would otherwise cover the first row
+   in a very short viewport, and an empty draft must still collapse. */
+#mapping-card .table-scroll:has(tbody tr) {
+  min-height: 180px;
 }

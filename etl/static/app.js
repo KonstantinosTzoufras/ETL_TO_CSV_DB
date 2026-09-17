@@ -116,6 +116,11 @@ $("columns").onclick=event=>{const button=event.target.closest("[data-remove]");
 $("add").onclick=()=>action(async()=>{read();definition.columns.push({name:"",source:"",type:"string"});renderColumns();dirty=true;});
 $("inspect").onclick=()=>action(async()=>{
   if(typeof templateIsPending==="function" && templateIsPending())throw new Error("Use Read binding columns in the template binding panel; mappings stay explicit.");
+  if($("source-kind").value==="sqlserver_query"){
+    const draft=source();
+    if(!draft.connection_env)throw new Error("Select an approved query connection first.");
+    if(!draft.query.sql.trim())throw new Error("Write the SELECT query first, then use Inspect query columns.");
+  }
   if($("source-kind").value==="sqlserver" && !$("table").value){
     $("discovery").open=true;
     if(!$("connection").value)throw new Error("Select a configured database connection first.");
