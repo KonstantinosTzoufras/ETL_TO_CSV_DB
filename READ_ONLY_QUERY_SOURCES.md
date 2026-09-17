@@ -106,7 +106,10 @@ Supported: schema-qualified local table/view references; column expressions and
 aliases; INNER/LEFT/RIGHT/FULL/CROSS joins; derived tables and SELECT subqueries;
 WHERE/GROUP BY/HAVING/ORDER BY; DISTINCT/TOP; arithmetic, comparisons, boolean
 operators, CASE, IN/BETWEEN/LIKE/EXISTS; COALESCE/NULLIF, UPPER/LOWER/LEN,
-ABS/ROUND, SUM/AVG/MIN/MAX/COUNT; scalar CAST to the supported built-in types.
+TRIM/LTRIM/RTRIM, ABS/ROUND, SUM/AVG/MIN/MAX/COUNT; scalar CAST to the
+supported built-in types. TRIM, LTRIM and RTRIM parse to one node, so all
+three forms and the ANSI `TRIM(BOTH ' ' FROM col)` spelling are accepted.
+Trimming CHAR(n) padding in the query avoids a per-value transform in Python.
 Scalar CAST types: int, bigint, decimal, float, bit, date, datetime/datetime2,
 text/varchar/nvarchar (as represented by the pinned parser).
 

@@ -58,6 +58,9 @@ _ALLOWED = {
     "Case": "this ifs default", "If": "this true false",
     "Coalesce": "this expressions is_nvl is_null", "Nullif": "this expression",
     "Upper": "this", "Lower": "this", "Length": "this",
+    # TRIM, LTRIM and RTRIM all parse to Trim; position and expression carry
+    # the LEADING/TRAILING/BOTH keyword and an optional character literal.
+    "Trim": "this position expression",
     "Abs": "this", "Round": "this decimals truncate",
     "Sum": "this", "Avg": "this", "Min": "this expressions", "Max": "this expressions",
     "Count": "this expressions big_int",

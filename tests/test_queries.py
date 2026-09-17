@@ -79,6 +79,10 @@ class QueryValidationTests(unittest.TestCase):
             "SELECT CASE WHEN Name IS NULL THEN N'κενό' ELSE Name END AS Name FROM dbo.BRANDS",
             'SELECT COALESCE(Name, ?), NULLIF(Name, ?), UPPER(Name), LOWER(Name), LEN(Name), ABS(Amount), ROUND(Amount,2), AVG(Amount), MIN(Amount), MAX(Amount) FROM dbo.BRANDS',
             'SELECT Code FROM dbo.BRANDS WHERE Amount BETWEEN ? AND ? AND Code IN (?, ?) AND NOT Name LIKE ?',
+            # TRIM, LTRIM and RTRIM share one node; CHAR(n) padding is the
+            # common reason to clean a column in the query rather than in Python.
+            'SELECT TRIM(Code) AS Code, LTRIM(RTRIM(Name)) AS Name FROM dbo.BRANDS',
+            "SELECT TRIM(BOTH ' ' FROM Code) AS Code FROM dbo.BRANDS WHERE RTRIM(Name)=?",
             'SELECT b.Code FROM dbo.BRANDS b RIGHT OUTER JOIN dbo.Regions r ON b.Code=r.Code',
             'SELECT b.Code FROM dbo.BRANDS b FULL JOIN dbo.Regions r ON b.Code=r.Code',
             'SELECT b.Code FROM dbo.BRANDS b CROSS JOIN dbo.Regions r',
