@@ -20,8 +20,16 @@ class _Unset(Enum):
 UNSET = _Unset.VALUE  # A literal of None is a value, not an omitted literal.
 
 
+# Exact types, so a hit here can never also be a Mapping, sequence or model.
+_SCALARS = frozenset({str, int, float, bool, type(None), bytes, Decimal, date, datetime, time, UUID})
+
+
 def _freeze(value):
     """Copy containers before freezing: never expose a caller-owned backing map."""
+    # Scalars dominate real rows; testing them first skips an abstract-base
+    # isinstance per value. Exact type matching keeps this order-independent.
+    if type(value) in _SCALARS or value is UNSET:
+        return value
     if isinstance(value, _Immutable):
         return value
     if isinstance(value, Mapping):
