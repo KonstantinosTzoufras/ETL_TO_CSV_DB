@@ -1,49 +1,1209 @@
-:root{font-family:Inter,"Segoe UI",sans-serif;color:#24352f;background:#f5f7f5;font-size:14px;font-synthesis:none}*{box-sizing:border-box}body{margin:0;display:flex}aside{width:244px;background:#fff;border-right:1px solid #e1e7e3;position:fixed;inset:0 auto 0 0;padding:30px 20px;display:flex;flex-direction:column}.brand{display:flex;gap:12px;align-items:center;font-size:20px;font-weight:700;margin-bottom:36px}.logo{display:grid;place-items:center;background:#165f48;color:white;border-radius:12px;width:42px;height:42px;font-size:24px}.brand small,.aside-foot small{display:block;font-size:9px;letter-spacing:1.8px;font-weight:500;margin-top:5px;color:#7b8d83}.eyebrow{font-size:10px;letter-spacing:1.6px;font-weight:700;color:#7d8e85;margin:24px 0 12px}aside nav{overflow:auto}.aside-foot{margin-top:auto;color:#667c6e;font-size:12px;padding-top:25px}.aside-foot small{letter-spacing:.5px;margin-top:10px}.dot{display:inline-block;width:7px;height:7px;background:#39a779;border-radius:50%;margin-right:6px}main{margin-left:244px;width:calc(100% - 244px);padding:40px 4%;max-width:1700px}header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:28px}header .eyebrow{margin-top:0}h1{font-size:32px;letter-spacing:-1px;font-weight:650;margin:12px 0}h2{font-size:17px;font-weight:650;margin:0}.muted{color:#7a8980;font-size:13px;line-height:1.6;margin:8px 0}.badge{color:#38745d;background:#e9f2ec;border:1px solid #d7e8dd;padding:8px 12px;border-radius:6px;letter-spacing:1px;font-size:10px;white-space:nowrap}.card{background:white;border:1px solid #dfe7e1;border-radius:12px;padding:24px;margin-bottom:20px;box-shadow:0 3px 5px #193a2410}.titlebar{display:flex;gap:10px;align-items:flex-end}.titlebar label{margin-right:14px}.titlebar input{font-size:16px;font-weight:600}.grow{flex:1;min-width:150px}label{display:flex;flex-direction:column;gap:8px;color:#65766c;font-size:11px;font-weight:600}input,select,textarea,button{font:inherit}input,select,textarea{border:1px solid #dce4de;border-radius:6px;padding:10px;background:#fff;color:#2b3d31;min-width:0;width:100%;font-size:13px}input:focus,select:focus,textarea:focus{outline:2px solid #77b299;outline-offset:1px}button{background:#fff;color:#42634f;border:1px solid #d4ded6;border-radius:6px;padding:10px 14px;cursor:pointer;font-weight:600;font-size:12px;white-space:nowrap}button:hover{background:#edf5ef;border-color:#93b5a0}button:disabled{opacity:.45;cursor:wait}.primary{background:#196448;color:#fff;border-color:#196448}.primary:hover{background:#114d36}.wide{width:100%}.flow{display:flex;align-items:center;justify-content:center;gap:38px;margin:27px 0;color:#5a7566;font-size:12px}.flow b{background:#e4eee7;padding:5px 7px;border-radius:5px;margin-right:7px;font-size:10px}.flow i{font-style:normal;color:#afc1b5}.section-head{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:18px}.step{font-size:11px;color:#648a74;margin-right:9px}.fields{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}.fields>label{min-width:120px}.fields>label:not(.grow){max-width:200px}.hint{color:#7c8d81;font-size:11px;line-height:1.7;margin:15px 0 0}.fields .hint{margin:0}.table-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12px;text-align:left}th{font-size:9px;letter-spacing:.8px;color:#85938a;background:#f7f9f7;padding:12px 9px;white-space:nowrap}td{border-bottom:1px solid #edf0ed;padding:10px 8px;vertical-align:top}.mapping input,.mapping select{padding:8px;font-size:12px;min-width:110px}.mapping td:nth-child(4) input{min-width:145px}.mapping input[type=checkbox]{min-width:18px;width:18px;height:18px;accent-color:#196448;margin:7px}.mapping input[type=number]{min-width:64px;width:70px}.mapping .remove{border:0;color:#b17168;padding:6px 9px;font-size:20px}.mapping td:first-child input{font-weight:600}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}.chip{padding:5px 8px;border-radius:5px;background:#f0f5f1;font-size:11px;color:#69846e}.pipeline{display:block;text-align:left;width:100%;white-space:normal;border:0;font-size:12px;padding:12px;margin:3px 0}.pipeline.active{background:#eaf3ed;color:#176245}.pipeline small{display:block;color:#91a196;margin-top:4px;font-size:10px}.counts{display:flex;gap:18px;margin-bottom:18px}.count{padding:16px 22px;background:#f6f8f6;border-radius:8px;min-width:130px}.count b{font-size:26px;display:block;margin-bottom:3px}.count.good{color:#277954;background:#edf6f0}.count.bad{color:#b8773c;background:#fff5e9}.reason{color:#ae683c;font-size:11px;max-width:260px;line-height:1.6}.valid{color:#318863}.invalid{color:#b67438}.run{display:flex;justify-content:space-between;gap:18px;padding:15px 0;border-bottom:1px solid #edf1ed}.run strong{font-size:13px}.run p{font-size:11px;margin:6px 0;color:#85938a}.run a{display:inline-block;font-size:11px;margin:8px 0 0 12px;color:#196448}.run-status{font-size:11px;font-weight:600;text-transform:capitalize}.run .failed{color:#b34b42}.run .completed{color:#258055}.run .running,.run .queued{color:#a67c30}#notice:not(:empty){background:#e9f4ed;color:#266447;padding:13px 16px;border-radius:7px;margin-bottom:18px;font-size:13px}#notice.error{background:#fff0ed;color:#a54c40}summary{cursor:pointer;font-size:12px;font-weight:600;color:#69816e}textarea{font:12px/1.7 Consolas,monospace;margin:12px 0;resize:vertical}footer{color:#96a299;font-size:11px;margin:30px 0;display:flex;justify-content:space-between}[hidden]{display:none!important}@media(max-width:1150px){aside{width:200px}main{margin-left:200px;width:calc(100% - 200px);padding:30px 25px}.titlebar{flex-wrap:wrap}.titlebar .grow{flex-basis:100%}.fields{gap:12px}.flow{gap:15px}}@media(max-width:720px){body{display:block}aside{position:relative;width:100%;border-right:0;border-bottom:1px solid #dfe7e1;padding:18px}.brand{margin-bottom:15px}.aside-foot{display:none}aside nav{max-height:120px}main{margin:0;width:100%;padding:22px 14px}h1{font-size:26px}header .badge{display:none}.card{padding:18px}.flow{gap:7px;font-size:10px}.flow b{margin-right:2px}.section-head{align-items:flex-start}.counts{gap:8px}.count{min-width:0;flex:1;padding:12px}.fields>label{flex:1}.run{flex-wrap:wrap}footer span{display:none}}
-#preview-table table{min-width:900px}#preview-table .reason{min-width:200px}
-.diagnostic-row{border-bottom:1px solid #dfe7e1;padding:14px 0}.diagnostic-row>summary{font-size:13px}.diagnostic-field{margin:12px 0;padding:12px;border:1px solid #dfe7e1;border-radius:6px}.diagnostic-field summary{white-space:normal;overflow-wrap:anywhere}.diagnostic-field table{min-width:640px;table-layout:fixed}.diagnostic-field pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 Consolas,monospace;margin:8px 0}.diagnostic-type{font-size:11px;font-weight:600}.diagnostic-missing{color:#795a39;font-size:12px}.diagnostic-errors{color:#a54c40;padding-left:20px}.diagnostic-errors p{margin:4px 0}.escaped-value summary{font-size:10px}#runs [data-diagnostics]{display:block;margin:10px 0 0 auto}#run-diagnostics-name{overflow-wrap:anywhere}
-.template-field,.template-binding{border:1px solid #dfe7e1;border-radius:6px;margin:14px 0;padding:14px}.template-field input[type=checkbox]{width:18px;height:18px}.template-binding h3,.template-binding p{overflow-wrap:anywhere}#mapping-templates button{margin:8px 4px 8px 0}#mapping-templates>label{margin-top:12px}
-#ordered-steps{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}#ordered-steps [aria-current=step]{border-color:#165f48;background:#edf5ef}#ordered-editor button{margin:6px 4px 6px 0}.ordered-run{border-bottom:1px solid #dfe7e1;padding:16px 0;overflow-wrap:anywhere}.ordered-run li{margin:14px 0}.ordered-run a{display:inline-block;margin:6px 10px 6px 0}.ordered-run p{margin:6px 0}
-/* Explicit column selection, kept separate from processing. */
-#column-picker{padding:16px;margin:16px 0;background:#f5f9f6;border:1px solid #d4ded6;border-radius:8px}
-.picker-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-#column-choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;max-height:260px;overflow:auto;margin:12px 0}
-#column-choices label{display:flex;flex-direction:row;align-items:center;overflow-wrap:anywhere;font-size:13px}
-#column-choices input{width:18px;flex:0 0 18px}
-#discovery-feedback{white-space:pre-wrap;overflow-wrap:anywhere;color:#654e26}
-#export-location{overflow-wrap:anywhere}
+/* ETL Studio - local web UI styles.
+ *
+ * Plain CSS, no build step, no framework. Rules are grouped into the sections
+ * listed below and appear in cascade order, so a later rule wins over an
+ * earlier one with the same specificity. Several selectors are intentionally
+ * defined twice (main, header, .flow, .titlebar, #column-picker,
+ * #column-choices): the second definition is a later override and must stay
+ * after the first. Do not sort or deduplicate this file.
+ *
+ * Sections, in file order:
+ *    1. FOUNDATIONS
+ *    2. SIDEBAR
+ *    3. PAGE FRAME AND HEADINGS
+ *    4. CARDS AND TITLE BAR
+ *    5. FORM CONTROLS AND BUTTONS
+ *    6. SECTION NAV AND FIELD ROWS
+ *    7. TABLES AND THE MAPPING GRID
+ *    8. CHIPS AND SAVED PIPELINES
+ *    9. PREVIEW COUNTS AND STATUS COLOURS
+ *   10. RUN HISTORY AND NOTICES
+ *   11. SHARED PRIMITIVES
+ *   12. RESPONSIVE - BASE LAYOUT
+ *   13. PROCESSED PREVIEW TABLE
+ *   14. DIAGNOSTICS VIEWER
+ *   15. MAPPING TEMPLATES
+ *   16. ORDERED QUERY EXPORTS
+ *   17. COLUMN PICKER
+ *   18. BINDING PICKER
+ *   19. BOUNDED WORK AREAS
+ *   20. RESULTS AREA AND ACTION BAR
+ *   21. SELECT2 SKIN
+ *   22. TRANSFORM CONTROLS
+ *   23. RESPONSIVE - OVERRIDES
+ *   24. FIELD PIPELINE
+ */
 
-#binding-picker{border:1px solid #93b5a0;border-radius:8px;padding:16px;margin:12px 0;background:#f5f9f6} #binding-options{max-height:240px;overflow:auto} [data-choose-source]{display:block;margin-top:5px} [data-choose-source][hidden]{display:none}
+/* FOUNDATIONS
+   -----------
+   Design tokens and the box model every other rule assumes. */
+:root {
+  font-family: Inter,"Segoe UI",sans-serif;
+  color: #24352f;
+  background: #f5f7f5;
+  font-size: 14px;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
 
-/* Bounded work areas and persistent actions keep large schemas navigable. */
-.mapping-name{display:flex;align-items:center;gap:5px}.mapping-name [data-field=name]{flex:1}.mapping-name [data-bulk-select]{flex:0 0 17px}#columns details.transform-control{min-width:160px;max-width:260px}#columns details.transform-control summary{font-size:11px;white-space:normal;overflow-wrap:anywhere}#columns details.transform-control[open] .transform-chain{margin-top:8px}
-#bulk-transforms{border:1px solid #dfe7e1;border-radius:8px;padding:10px;margin-bottom:12px}#bulk-transforms .transform-control{min-width:0;max-width:440px}.bulk-actions{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.bulk-actions button{padding:7px 10px}#columns [data-bulk-select]{min-width:0;width:17px;height:17px;margin:0 7px 6px 0;vertical-align:middle}
-main{padding-bottom:110px;max-width:none}header{margin-bottom:16px}header h1{font-size:26px}
-.titlebar{padding:16px 22px}.titlebar label{max-width:640px}.flow{justify-content:flex-start;gap:8px;margin:16px 0;flex-wrap:wrap}
-.bounded-card{display:flex;flex-direction:column;scroll-margin-top:16px;padding:20px}
-#source-card{max-height:460px}#mapping-card{max-height:620px}
-.section-head{flex:0 0 auto;margin-bottom:12px}.section-body{min-height:0;flex:0 1 auto;overflow:auto;scrollbar-gutter:stable;padding-right:8px;overscroll-behavior:contain}
-#column-picker{padding:12px;margin-top:0}#column-choices{max-height:140px}.mapping th{position:sticky;top:0;z-index:1}.mapping td{padding:8px;vertical-align:middle}
+/* SIDEBAR
+   -------
+   Fixed left column: brand, new-pipeline button, saved pipelines. */
+body {
+  margin: 0;
+  display: flex;
+}
+aside {
+  width: 244px;
+  background: #fff;
+  border-right: 1px solid #e1e7e3;
+  position: fixed;
+  inset: 0 auto 0 0;
+  padding: 30px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 36px;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  background: #165f48;
+  color: white;
+  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  font-size: 24px;
+}
+.brand small,
+.aside-foot small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  font-weight: 500;
+  margin-top: 5px;
+  color: #7b8d83;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+  color: #7d8e85;
+  margin: 24px 0 12px;
+}
+aside nav {
+  overflow: auto;
+}
+.aside-foot {
+  margin-top: auto;
+  color: #667c6e;
+  font-size: 12px;
+  padding-top: 25px;
+}
+.aside-foot small {
+  letter-spacing: .5px;
+  margin-top: 10px;
+}
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: #39a779;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+/* PAGE FRAME AND HEADINGS
+   -----------------------
+   The scrolling main column and its typography. */
+main {
+  margin-left: 244px;
+  width: calc(100% - 244px);
+  padding: 40px 4%;
+  max-width: 1700px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 28px;
+}
+header .eyebrow {
+  margin-top: 0;
+}
+h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  font-weight: 650;
+  margin: 12px 0;
+}
+h2 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0;
+}
+.muted {
+  color: #7a8980;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.badge {
+  color: #38745d;
+  background: #e9f2ec;
+  border: 1px solid #d7e8dd;
+  padding: 8px 12px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* CARDS AND TITLE BAR
+   -------------------
+   The white panels each editor section sits in. */
+.card {
+  background: white;
+  border: 1px solid #dfe7e1;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 3px 5px #193a2410;
+}
+.titlebar {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.titlebar label {
+  margin-right: 14px;
+}
+.titlebar input {
+  font-size: 16px;
+  font-weight: 600;
+}
+.grow {
+  flex: 1;
+  min-width: 150px;
+}
+
+/* FORM CONTROLS AND BUTTONS
+   -------------------------
+   Shared input, select, textarea and button skin. */
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #65766c;
+  font-size: 11px;
+  font-weight: 600;
+}
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+input,
+select,
+textarea {
+  border: 1px solid #dce4de;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+  color: #2b3d31;
+  min-width: 0;
+  width: 100%;
+  font-size: 13px;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #77b299;
+  outline-offset: 1px;
+}
+button {
+  background: #fff;
+  color: #42634f;
+  border: 1px solid #d4ded6;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+button:hover {
+  background: #edf5ef;
+  border-color: #93b5a0;
+}
+button:disabled {
+  opacity: .45;
+  cursor: wait;
+}
+.primary {
+  background: #196448;
+  color: #fff;
+  border-color: #196448;
+}
+.primary:hover {
+  background: #114d36;
+}
+.wide {
+  width: 100%;
+}
+
+/* SECTION NAV AND FIELD ROWS
+   --------------------------
+   The 01-04 jump links and horizontal label rows. */
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 38px;
+  margin: 27px 0;
+  color: #5a7566;
+  font-size: 12px;
+}
+.flow b {
+  background: #e4eee7;
+  padding: 5px 7px;
+  border-radius: 5px;
+  margin-right: 7px;
+  font-size: 10px;
+}
+.flow i {
+  font-style: normal;
+  color: #afc1b5;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.step {
+  font-size: 11px;
+  color: #648a74;
+  margin-right: 9px;
+}
+.fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.fields>label {
+  min-width: 120px;
+}
+.fields>label:not(.grow) {
+  max-width: 200px;
+}
+.hint {
+  color: #7c8d81;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 15px 0 0;
+}
+.fields .hint {
+  margin: 0;
+}
+
+/* TABLES AND THE MAPPING GRID
+   ---------------------------
+   Generic tables plus the Map & validate editor. */
+.table-scroll {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+}
+th {
+  font-size: 9px;
+  letter-spacing: .8px;
+  color: #85938a;
+  background: #f7f9f7;
+  padding: 12px 9px;
+  white-space: nowrap;
+}
+td {
+  border-bottom: 1px solid #edf0ed;
+  padding: 10px 8px;
+  vertical-align: top;
+}
+.mapping input,
+.mapping select {
+  padding: 8px;
+  font-size: 12px;
+  min-width: 110px;
+}
+.mapping td:nth-child(4) input {
+  min-width: 145px;
+}
+.mapping input[type=checkbox] {
+  min-width: 18px;
+  width: 18px;
+  height: 18px;
+  accent-color: #196448;
+  margin: 7px;
+}
+.mapping input[type=number] {
+  min-width: 64px;
+  width: 70px;
+}
+.mapping .remove {
+  border: 0;
+  color: #b17168;
+  padding: 6px 9px;
+  font-size: 20px;
+}
+.mapping td:first-child input {
+  font-weight: 600;
+}
+
+/* CHIPS AND SAVED PIPELINES
+   -------------------------
+   Column chips and the sidebar pipeline list. */
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.chip {
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: #f0f5f1;
+  font-size: 11px;
+  color: #69846e;
+}
+.pipeline {
+  display: block;
+  text-align: left;
+  width: 100%;
+  white-space: normal;
+  border: 0;
+  font-size: 12px;
+  padding: 12px;
+  margin: 3px 0;
+}
+.pipeline.active {
+  background: #eaf3ed;
+  color: #176245;
+}
+.pipeline small {
+  display: block;
+  color: #91a196;
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+/* PREVIEW COUNTS AND STATUS COLOURS
+   ---------------------------------
+   Valid/rejected tallies and their palette. */
+.counts {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.count {
+  padding: 16px 22px;
+  background: #f6f8f6;
+  border-radius: 8px;
+  min-width: 130px;
+}
+.count b {
+  font-size: 26px;
+  display: block;
+  margin-bottom: 3px;
+}
+.count.good {
+  color: #277954;
+  background: #edf6f0;
+}
+.count.bad {
+  color: #b8773c;
+  background: #fff5e9;
+}
+.reason {
+  color: #ae683c;
+  font-size: 11px;
+  max-width: 260px;
+  line-height: 1.6;
+}
+.valid {
+  color: #318863;
+}
+.invalid {
+  color: #b67438;
+}
+
+/* RUN HISTORY AND NOTICES
+   -----------------------
+   Run rows, status words and the notice banner. */
+.run {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 0;
+  border-bottom: 1px solid #edf1ed;
+}
+.run strong {
+  font-size: 13px;
+}
+.run p {
+  font-size: 11px;
+  margin: 6px 0;
+  color: #85938a;
+}
+.run a {
+  display: inline-block;
+  font-size: 11px;
+  margin: 8px 0 0 12px;
+  color: #196448;
+}
+.run-status {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.run .failed {
+  color: #b34b42;
+}
+.run .completed {
+  color: #258055;
+}
+.run .running,
+.run .queued {
+  color: #a67c30;
+}
+#notice:not(:empty) {
+  background: #e9f4ed;
+  color: #266447;
+  padding: 13px 16px;
+  border-radius: 7px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+#notice.error {
+  background: #fff0ed;
+  color: #a54c40;
+}
+
+/* SHARED PRIMITIVES
+   -----------------
+   summary, textarea, footer and the [hidden] contract. */
+summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #69816e;
+}
+textarea {
+  font: 12px/1.7 Consolas,monospace;
+  margin: 12px 0;
+  resize: vertical;
+}
+footer {
+  color: #96a299;
+  font-size: 11px;
+  margin: 30px 0;
+  display: flex;
+  justify-content: space-between;
+}
+[hidden] {
+  display: none!important;
+}
+
+/* RESPONSIVE - BASE LAYOUT
+   ------------------------
+   Narrow-desktop and phone versions of the above. */
+@media(max-width:1150px) {
+  aside {
+    width: 200px;
+  }
+  main {
+    margin-left: 200px;
+    width: calc(100% - 200px);
+    padding: 30px 25px;
+  }
+  .titlebar {
+    flex-wrap: wrap;
+  }
+  .titlebar .grow {
+    flex-basis: 100%;
+  }
+  .fields {
+    gap: 12px;
+  }
+  .flow {
+    gap: 15px;
+  }
+}
+@media(max-width:720px) {
+  body {
+    display: block;
+  }
+  aside {
+    position: relative;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid #dfe7e1;
+    padding: 18px;
+  }
+  .brand {
+    margin-bottom: 15px;
+  }
+  .aside-foot {
+    display: none;
+  }
+  aside nav {
+    max-height: 120px;
+  }
+  main {
+    margin: 0;
+    width: 100%;
+    padding: 22px 14px;
+  }
+  h1 {
+    font-size: 26px;
+  }
+  header .badge {
+    display: none;
+  }
+  .card {
+    padding: 18px;
+  }
+  .flow {
+    gap: 7px;
+    font-size: 10px;
+  }
+  .flow b {
+    margin-right: 2px;
+  }
+  .section-head {
+    align-items: flex-start;
+  }
+  .counts {
+    gap: 8px;
+  }
+  .count {
+    min-width: 0;
+    flex: 1;
+    padding: 12px;
+  }
+  .fields>label {
+    flex: 1;
+  }
+  .run {
+    flex-wrap: wrap;
+  }
+  footer span {
+    display: none;
+  }
+}
+
+/* PROCESSED PREVIEW TABLE
+   -----------------------
+   The 100-row sample rendered under the editor. */
+#preview-table table {
+  min-width: 900px;
+}
+#preview-table .reason {
+  min-width: 200px;
+}
+
+/* DIAGNOSTICS VIEWER
+   ------------------
+   Per-record, per-field stage comparison rows. */
+.diagnostic-row {
+  border-bottom: 1px solid #dfe7e1;
+  padding: 14px 0;
+}
+.diagnostic-row>summary {
+  font-size: 13px;
+}
+.diagnostic-field {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #dfe7e1;
+  border-radius: 6px;
+}
+.diagnostic-field summary {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.diagnostic-field table {
+  min-width: 640px;
+  table-layout: fixed;
+}
+.diagnostic-field pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.6 Consolas,monospace;
+  margin: 8px 0;
+}
+.diagnostic-type {
+  font-size: 11px;
+  font-weight: 600;
+}
+.diagnostic-missing {
+  color: #795a39;
+  font-size: 12px;
+}
+.diagnostic-errors {
+  color: #a54c40;
+  padding-left: 20px;
+}
+.diagnostic-errors p {
+  margin: 4px 0;
+}
+.escaped-value summary {
+  font-size: 10px;
+}
+#runs [data-diagnostics] {
+  display: block;
+  margin: 10px 0 0 auto;
+}
+#run-diagnostics-name {
+  overflow-wrap: anywhere;
+}
+
+/* MAPPING TEMPLATES
+   -----------------
+   Template editor fields and explicit binding panels. */
+.template-field,
+.template-binding {
+  border: 1px solid #dfe7e1;
+  border-radius: 6px;
+  margin: 14px 0;
+  padding: 14px;
+}
+.template-field input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+}
+.template-binding h3,
+.template-binding p {
+  overflow-wrap: anywhere;
+}
+#mapping-templates button {
+  margin: 8px 4px 8px 0;
+}
+#mapping-templates>label {
+  margin-top: 12px;
+}
+
+/* ORDERED QUERY EXPORTS
+   ---------------------
+   Step chips and the multi-step run history card. */
+#ordered-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+#ordered-steps [aria-current=step] {
+  border-color: #165f48;
+  background: #edf5ef;
+}
+#ordered-editor button {
+  margin: 6px 4px 6px 0;
+}
+.ordered-run {
+  border-bottom: 1px solid #dfe7e1;
+  padding: 16px 0;
+  overflow-wrap: anywhere;
+}
+.ordered-run li {
+  margin: 14px 0;
+}
+.ordered-run a {
+  display: inline-block;
+  margin: 6px 10px 6px 0;
+}
+.ordered-run p {
+  margin: 6px 0;
+}
+
+/* COLUMN PICKER
+   -------------
+   Explicit source-column selection, separate from processing. */
+#column-picker {
+  padding: 16px;
+  margin: 16px 0;
+  background: #f5f9f6;
+  border: 1px solid #d4ded6;
+  border-radius: 8px;
+}
+.picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+#column-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  margin: 12px 0;
+}
+#column-choices label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+#column-choices input {
+  width: 18px;
+  flex: 0 0 18px;
+}
+#discovery-feedback {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #654e26;
+}
+#export-location {
+  overflow-wrap: anywhere;
+}
+
+/* BINDING PICKER
+   --------------
+   The per-row 'choose source column' panel. */
+#binding-picker {
+  border: 1px solid #93b5a0;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  background: #f5f9f6;
+}
+#binding-options {
+  max-height: 240px;
+  overflow: auto;
+}
+[data-choose-source] {
+  display: block;
+  margin-top: 5px;
+}
+[data-choose-source][hidden] {
+  display: none;
+}
+
+/* BOUNDED WORK AREAS
+   ------------------
+   Height caps and internal scrolling for large schemas. */
+.mapping-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mapping-name [data-field=name] {
+  flex: 1;
+}
+.mapping-name [data-bulk-select] {
+  flex: 0 0 17px;
+}
+#columns details.transform-control {
+  min-width: 160px;
+  max-width: 260px;
+}
+#columns details.transform-control summary {
+  font-size: 11px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#columns details.transform-control[open] .transform-chain {
+  margin-top: 8px;
+}
+#bulk-transforms {
+  border: 1px solid #dfe7e1;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+#bulk-transforms .transform-control {
+  min-width: 0;
+  max-width: 440px;
+}
+.bulk-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.bulk-actions button {
+  padding: 7px 10px;
+}
+#columns [data-bulk-select] {
+  min-width: 0;
+  width: 17px;
+  height: 17px;
+  margin: 0 7px 6px 0;
+  vertical-align: middle;
+}
+main {
+  padding-bottom: 110px;
+  max-width: none;
+}
+header {
+  margin-bottom: 16px;
+}
+header h1 {
+  font-size: 26px;
+}
+.titlebar {
+  padding: 16px 22px;
+}
+.titlebar label {
+  max-width: 640px;
+}
+.flow {
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.bounded-card {
+  display: flex;
+  flex-direction: column;
+  scroll-margin-top: 16px;
+  padding: 20px;
+}
+#source-card {
+  max-height: 460px;
+}
+#mapping-card {
+  max-height: 620px;
+}
+.section-head {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+.section-body {
+  min-height: 0;
+  flex: 0 1 auto;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding-right: 8px;
+  overscroll-behavior: contain;
+}
+#column-picker {
+  padding: 12px;
+  margin-top: 0;
+}
+#column-choices {
+  max-height: 140px;
+}
+.mapping th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.mapping td {
+  padding: 8px;
+  vertical-align: middle;
+}
 /* Contain Select2's absolutely positioned hidden native selects within the
    mapping scroller, so off-screen rows cannot extend the document height. */
-#mapping-card .table-scroll{position:relative;max-height:360px;overflow:auto;border:1px solid #dfe7e1;border-radius:8px}
-#discovery-metadata,#discovery-sample-table,#preview-table,#run-diagnostics-rows,#runs{max-height:360px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
-#discovery-datasets,#discovery-folders{max-height:180px;overflow:auto}#source-columns{display:none}
-#mapping-templates[open],#template-bindings,#ordered-editor{max-height:500px;overflow:auto}
-.results-title{margin:20px 0 14px}#results-area{scroll-margin-top:16px}#results-area .card{padding:20px}
-.action-bar{position:fixed;bottom:0;left:244px;right:0;z-index:20;background:#fff;border-top:1px solid #d4ded6;box-shadow:0 -4px 16px #193a2410;display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:14px 4%}
-.action-bar>span{margin-right:auto;color:#65766c;font-size:12px}.action-bar button{min-height:42px}#notice{position:sticky;top:8px;z-index:15}
-[data-choice-backed]:not(.literal-value),[data-transform-backed]{display:none!important}
-.source-select+.select2{min-width:170px;max-width:100%}.select2-container--default .select2-selection--single{height:38px;border:1px solid #d4ded6;border-radius:6px}
-.select2-container--default .select2-selection--single .select2-selection__rendered{line-height:36px;color:#2b3d31;font-size:13px}
-.select2-container--default .select2-selection--single .select2-selection__arrow{height:36px}
-.select2-dropdown{border-color:#93b5a0;box-shadow:0 6px 18px #193a2420;z-index:1050}
-.select2-container--default .select2-results__option--highlighted[aria-selected]{background:#196448}
-.select2-search__field{min-width:0!important}.select2-results__options{max-height:240px!important}.select2-results__option{font-size:13px;overflow-wrap:anywhere}
-.select2-hidden-accessible{min-width:0!important;max-width:1px!important;min-height:0!important}
-#columns tr.enhanced-row [data-choose-source]{display:none}
-.transform-control{min-width:230px}.transform-chain{display:flex;flex-direction:column;gap:5px;margin-bottom:6px}.transform-chip{display:flex;align-items:center;gap:3px;background:#edf5ef;border-radius:5px;padding:3px 5px;font-size:11px}.transform-chip>span{flex:1}.transform-chip button{padding:2px 5px;font-size:12px}
-.transform-add{display:flex;gap:5px}.transform-add select{min-width:130px;padding:6px;font-size:11px}.transform-add button{padding:6px;font-size:10px}
-@media(max-width:1150px){.action-bar{left:200px;padding:12px 25px}.action-bar>span{display:none}}
-@media(max-width:720px){main{padding-bottom:155px}.action-bar{left:0;padding:10px;flex-wrap:wrap;gap:6px}.action-bar button{flex:1;padding:8px;font-size:11px}.bounded-card{padding:14px}#source-card{max-height:480px}#mapping-card{max-height:580px}.source-select+.select2{min-width:0}.mapping .source-select+.select2{min-width:170px}.flow button{padding:8px;font-size:11px}#notice{top:0}.section-body{padding-right:4px}}
-/* The field pipeline, shown in the order etl/engine.py:process_row applies it. */
-.stage-flow{display:flex;flex-wrap:wrap;align-items:center;gap:5px;list-style:none;margin:0 0 12px;padding:9px 12px;background:#f5f9f6;border:1px solid #d4ded6;border-radius:8px;font-size:11px;color:#4f6a5a}.stage-flow li{display:flex;align-items:center;gap:5px;white-space:nowrap}.stage-flow li+li::before{content:"92";color:#9fb6a8;margin-right:2px}.stage-flow b,.mapping th .stage-no{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#196448;color:#fff;font-size:9px;font-weight:700;flex:0 0 15px}.stage-flow .stage-edge{font-weight:700;color:#24352f}.mapping th .stage-no{margin-right:5px;vertical-align:middle}@media(max-width:720px){.stage-flow{font-size:10px;gap:4px;padding:8px}}.stage-note{margin:0 0 12px}.stage-note .hint{margin-top:6px}
+#mapping-card .table-scroll {
+  position: relative;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #dfe7e1;
+  border-radius: 8px;
+}
+#discovery-metadata,
+#discovery-sample-table,
+#preview-table,
+#run-diagnostics-rows,
+#runs {
+  max-height: 360px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+#discovery-datasets,
+#discovery-folders {
+  max-height: 180px;
+  overflow: auto;
+}
+#source-columns {
+  display: none;
+}
+#mapping-templates[open],
+#template-bindings,
+#ordered-editor {
+  max-height: 500px;
+  overflow: auto;
+}
+
+/* RESULTS AREA AND ACTION BAR
+   ---------------------------
+   Bottom results group and the fixed Save/Preview/Run bar. */
+.results-title {
+  margin: 20px 0 14px;
+}
+#results-area {
+  scroll-margin-top: 16px;
+}
+#results-area .card {
+  padding: 20px;
+}
+.action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 244px;
+  right: 0;
+  z-index: 20;
+  background: #fff;
+  border-top: 1px solid #d4ded6;
+  box-shadow: 0 -4px 16px #193a2410;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 4%;
+}
+.action-bar>span {
+  margin-right: auto;
+  color: #65766c;
+  font-size: 12px;
+}
+.action-bar button {
+  min-height: 42px;
+}
+#notice {
+  position: sticky;
+  top: 8px;
+  z-index: 15;
+}
+
+/* SELECT2 SKIN
+   ------------
+   Local Select2 styling; hidden native inputs stay the value boundary. */
+[data-choice-backed]:not(.literal-value),
+[data-transform-backed] {
+  display: none!important;
+}
+.source-select+.select2 {
+  min-width: 170px;
+  max-width: 100%;
+}
+.select2-container--default .select2-selection--single {
+  height: 38px;
+  border: 1px solid #d4ded6;
+  border-radius: 6px;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+  line-height: 36px;
+  color: #2b3d31;
+  font-size: 13px;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+  height: 36px;
+}
+.select2-dropdown {
+  border-color: #93b5a0;
+  box-shadow: 0 6px 18px #193a2420;
+  z-index: 1050;
+}
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+  background: #196448;
+}
+.select2-search__field {
+  min-width: 0!important;
+}
+.select2-results__options {
+  max-height: 240px!important;
+}
+.select2-results__option {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.select2-hidden-accessible {
+  min-width: 0!important;
+  max-width: 1px!important;
+  min-height: 0!important;
+}
+#columns tr.enhanced-row [data-choose-source] {
+  display: none;
+}
+
+/* TRANSFORM CONTROLS
+   ------------------
+   The ordered transform chip list used by rows and bulk edits. */
+.transform-control {
+  min-width: 230px;
+}
+.transform-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.transform-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #edf5ef;
+  border-radius: 5px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+.transform-chip>span {
+  flex: 1;
+}
+.transform-chip button {
+  padding: 2px 5px;
+  font-size: 12px;
+}
+.transform-add {
+  display: flex;
+  gap: 5px;
+}
+.transform-add select {
+  min-width: 130px;
+  padding: 6px;
+  font-size: 11px;
+}
+.transform-add button {
+  padding: 6px;
+  font-size: 10px;
+}
+
+/* RESPONSIVE - OVERRIDES
+   ----------------------
+   Phone adjustments for everything added after the base layout. */
+@media(max-width:1150px) {
+  .action-bar {
+    left: 200px;
+    padding: 12px 25px;
+  }
+  .action-bar>span {
+    display: none;
+  }
+}
+@media(max-width:720px) {
+  main {
+    padding-bottom: 155px;
+  }
+  .action-bar {
+    left: 0;
+    padding: 10px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .action-bar button {
+    flex: 1;
+    padding: 8px;
+    font-size: 11px;
+  }
+  .bounded-card {
+    padding: 14px;
+  }
+  #source-card {
+    max-height: 480px;
+  }
+  #mapping-card {
+    max-height: 580px;
+  }
+  .source-select+.select2 {
+    min-width: 0;
+  }
+  .mapping .source-select+.select2 {
+    min-width: 170px;
+  }
+  .flow button {
+    padding: 8px;
+    font-size: 11px;
+  }
+  #notice {
+    top: 0;
+  }
+  .section-body {
+    padding-right: 4px;
+  }
+}
+
+/* FIELD PIPELINE
+   --------------
+   Stage strip and numbered headers, in engine execution order. */
+.stage-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  background: #f5f9f6;
+  border: 1px solid #d4ded6;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #4f6a5a;
+}
+.stage-flow li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.stage-flow li+li::before {
+  content: "92";
+  color: #9fb6a8;
+  margin-right: 2px;
+}
+.stage-flow b,
+.mapping th .stage-no {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #196448;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  flex: 0 0 15px;
+}
+.stage-flow .stage-edge {
+  font-weight: 700;
+  color: #24352f;
+}
+.mapping th .stage-no {
+  margin-right: 5px;
+  vertical-align: middle;
+}
+@media(max-width:720px) {
+  .stage-flow {
+    font-size: 10px;
+    gap: 4px;
+    padding: 8px;
+  }
+}
+
+/* STAGE NOTE
+   ----------
+   The rationale is available but never costs height in a small viewport. */
+.stage-note {
+  margin: 0 0 12px;
+}
+.stage-note .hint {
+  margin-top: 6px;
+}
