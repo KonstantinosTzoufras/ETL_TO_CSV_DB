@@ -33,13 +33,15 @@ def _freeze(value):
     if isinstance(value, _Immutable):
         return value
     if isinstance(value, Mapping):
-        if any(not isinstance(key, str) for key in value):
-            raise TypeError("Domain mappings require string keys")
-        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+        # One walk: checking keys separately doubled the per-row iteration.
+        frozen = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("Domain mappings require string keys")
+            frozen[key] = _freeze(item)
+        return MappingProxyType(frozen)
     if isinstance(value, (list, tuple)):
         return tuple(_freeze(item) for item in value)
-    if value is UNSET or type(value) in (str, int, float, bool, type(None), bytes, Decimal, date, datetime, time, UUID):
-        return value
     raise TypeError(f"Unsupported domain value: {type(value).__name__}")
 
 
