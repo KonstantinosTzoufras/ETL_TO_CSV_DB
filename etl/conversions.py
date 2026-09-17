@@ -28,7 +28,10 @@ def convert_value(value, kind, *, version):
     raw = value
     value = text(value)
     if kind == "string":
-        return value
+        # Bytes have no faithful text form, and str() would emit a Python repr.
+        # Version 2 hands them to the exporter, which owns their representation
+        # (base64:) exactly as diagnostics already tag them. V1 is unchanged.
+        return raw if version == 2 and type(raw) is bytes else value
     if kind == "int":
         if not re.fullmatch(r"-?(0|[1-9][0-9]*)", value) or not -(2**63) <= int(value) < 2**63:
             raise ValueError("expected a 64-bit integer without leading zeros")

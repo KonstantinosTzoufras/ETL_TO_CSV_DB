@@ -90,6 +90,24 @@ class ProcessingStageTests(SemanticsTestCase):
         self.assertNotIn("value", result.converted_values)
         self.assertEqual(result.original_values["value"], 0.1)
 
+    def test_binary_reaches_the_exporter_instead_of_a_python_repr(self):
+        from pathlib import Path
+
+        raw = bytes([0, 255])
+        result = process(raw)
+        self.assertTrue(result.valid)
+        # V2 keeps the bytes so the exporter and diagnostics own the encoding;
+        # str() here would silently write a Python repr into the export.
+        self.assertEqual(result.converted_values["value"], raw)
+        self.assertEqual(json.loads(json.dumps(dict(result.converted_values), default=json_default)),
+                         {"value": {"$type": "bytes", "value": "AP8="}})
+        report = self.execute_rows([{"value": raw}], version=2)
+        with (Path(report["directory"]) / "valid.csv").open(encoding="utf-8-sig", newline="") as handle:
+            self.assertEqual(list(csv.reader(handle, delimiter=";"))[1], ["base64:AP8="])
+        legacy = self.execute_rows([{"value": raw}], version=1)
+        with (Path(legacy["directory"]) / "valid.csv").open(encoding="utf-8-sig", newline="") as handle:
+            self.assertEqual(list(csv.reader(handle, delimiter=";"))[1], [str(raw)])
+
     def test_explicit_case_transforms_only(self):
         self.assertEqual(process("aBc").converted_values["value"], "aBc")
         self.assertEqual(process("aBc", transforms=["upper", "lower"]).converted_values["value"], "abc")
