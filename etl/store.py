@@ -51,6 +51,11 @@ class Store:
             db.execute("INSERT INTO pipelines VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, spec=excluded.spec, updated=excluded.updated", (pipeline_id, spec["name"], json.dumps(spec), now()))
         return pipeline_id
 
+    def delete_pipeline(self, pipeline_id):
+        """Remove only a saved definition; run snapshots and files are independent."""
+        with self.connect() as db:
+            return db.execute("DELETE FROM pipelines WHERE id=?", (pipeline_id,)).rowcount == 1
+
     def create_run(self, spec):
         validate(spec)
         run_id = uuid.uuid4().hex

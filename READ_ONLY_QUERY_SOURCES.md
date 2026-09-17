@@ -110,7 +110,12 @@ TRIM/LTRIM/RTRIM, ABS/ROUND, SUM/AVG/MIN/MAX/COUNT; scalar CAST to the
 supported built-in types. TRIM, LTRIM and RTRIM parse to one node, so all
 three forms and the ANSI `TRIM(BOTH ' ' FROM col)` spelling are accepted.
 Trimming CHAR(n) padding in the query avoids a per-value transform in Python.
-Scalar CAST types: int, bigint, decimal, float, bit, date, datetime/datetime2,
+`CONVERT` accepts the same scalar target types as `CAST`, with an optional
+nonnegative integer literal style (for example `CONVERT(VARCHAR(10), Stamp, 112)`).
+Dynamic style expressions are unsupported. SQL Server validates the meaning of
+the style/type combination; query text is never rewritten by the application.
+
+Scalar CAST/CONVERT types: int, bigint, decimal, float, bit, date, datetime/datetime2,
 text/varchar/nvarchar (as represented by the pinned parser).
 
 Rejected: all writes/DDL/EXEC; SELECT INTO; multiple statements/batches; variables;

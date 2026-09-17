@@ -64,7 +64,8 @@ _ALLOWED = {
     "Abs": "this", "Round": "this decimals truncate",
     "Sum": "this", "Avg": "this", "Min": "this expressions", "Max": "this expressions",
     "Count": "this expressions big_int",
-    "Cast": "this to", "DataType": "this expressions nested", "DataTypeParam": "this",
+    "Cast": "this to", "Convert": "this expression style",
+    "DataType": "this expressions nested", "DataTypeParam": "this",
 }
 for _name in ("Add", "Sub", "Mul", "Div", "Mod", "EQ", "NEQ", "GT", "GTE", "LT", "LTE", "And", "Or", "Is", "Like"):
     _ALLOWED[_name] = "this expression"
@@ -103,7 +104,12 @@ def validate_sql(sql):
                       "QUERY_UNSUPPORTED", "Temporary objects and variables are not allowed")
             if type(node) is exp.DataType:
                 check(node.this.value in {"INT", "BIGINT", "DECIMAL", "FLOAT", "DOUBLE", "BOOLEAN", "DATE", "DATETIME", "DATETIME2", "TEXT", "VARCHAR", "NVARCHAR"},
-                      "QUERY_UNSUPPORTED", "Only supported scalar CAST types are allowed")
+                      "QUERY_UNSUPPORTED", "Only supported scalar CAST/CONVERT types are allowed")
+            if type(node) is exp.Convert:
+                check(type(node.this) is exp.DataType, "QUERY_UNSUPPORTED", "CONVERT requires a supported scalar target type")
+                style = node.args.get("style")
+                check(style is None or type(style) is exp.Literal and not style.is_string and style.this.isdigit(),
+                      "QUERY_UNSUPPORTED", "CONVERT style must be a nonnegative integer literal")
             if type(node) is exp.Table:
                 check(type(node.this) is exp.Identifier and type(node.args.get("db")) is exp.Identifier,
                       "QUERY_UNSUPPORTED", "Use local schema-qualified tables/views only")

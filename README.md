@@ -176,3 +176,10 @@ Set certificate trust explicitly only when appropriate for the intended server.
 Credentials stay on the server; the UI lists reference names only.
 This configuration does not grant query-source approval or assert database
 permissions. Restart after changing `.env`.
+# New pipeline defaults
+
+New single-source drafts use processing version 2. Saved pipelines and the shipped
+version-1 demo keep their explicit version. Default v2 CSV output represents NULL
+as `\N` and empty strings as empty fields; these remain distinct in processing.
+See [review implementation results](REVIEW_IMPLEMENTATION_RESULTS.md) for the
+bounded CONVERT addition, performance experiment and opt-in benchmark harness.

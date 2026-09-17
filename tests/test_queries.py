@@ -70,6 +70,36 @@ def fake_sql(rows=None, description=None):
 
 
 class QueryValidationTests(unittest.TestCase):
+    def test_convert_supported_types_style_and_bound_values(self):
+        for sql, count in [
+            ('SELECT CONVERT(VARCHAR(20), Code) FROM dbo.BRANDS', 0),
+            ('SELECT CONVERT(VARCHAR(10), Stamp, 112) FROM dbo.BRANDS', 0),
+            ('SELECT CONVERT(DECIMAL(28,4), ?) FROM dbo.BRANDS', 1),
+        ]:
+            with self.subTest(sql=sql):
+                self.assertEqual(validate_sql(sql), (count, (('dbo', 'BRANDS'),)))
+        sql = 'SELECT CONVERT(VARCHAR(10), ?, 112) AS Stamp FROM dbo.BRANDS'
+        q = query(sql, [{'name': 'stamp', 'type': 'date', 'value': '2026-09-17'}])
+        with fake_sql() as (sessions, connect):
+            with SqlServerQuerySource(source(q)).open():
+                pass
+            sessions[0][1].execute.assert_called_once_with(sql, (date(2026, 9, 17),))
+        self.assertEqual(query_to_dict(query_from_dict(q)), q)
+
+    def test_convert_fails_closed_before_connection(self):
+        for sql in [
+            'SELECT CONVERT(XML, Code) FROM dbo.BRANDS',
+            'SELECT CONVERT(VARCHAR(10), Stamp, ?) FROM dbo.BRANDS',
+            "SELECT CONVERT(VARCHAR(10), Stamp, '112') FROM dbo.BRANDS",
+            'SELECT CONVERT(VARCHAR(10), Stamp, 112) INTO dbo.copy FROM dbo.BRANDS',
+            'SELECT CONVERT(VARCHAR(10), Stamp, 112) FROM remote.db.dbo.BRANDS',
+            'SELECT CONVERT(VARCHAR(10), Stamp, 112) FROM dbo.BRANDS; EXEC dbo.proc',
+        ]:
+            with self.subTest(sql=sql), patch('pyodbc.connect') as connect:
+                with self.assertRaises(QueryError):
+                    SqlServerQuerySource(source(query(sql, []))).read_schema()
+                connect.assert_not_called()
+
     def test_supported_subset(self):
         cases = [
             'SELECT b.Code, r.Name, b.Amount-1 AS Net FROM dbo.BRANDS b LEFT JOIN dbo.Regions r ON r.Id=b.RegionId WHERE b.Code=? ORDER BY b.Code;',

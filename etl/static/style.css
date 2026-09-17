@@ -38,7 +38,7 @@
    -----------
    Design tokens and the box model every other rule assumes. */
 :root {
-  font-family: Inter,"Segoe UI",sans-serif;
+  font-family: Inter, "Segoe UI", sans-serif;
   color: #24352f;
   background: #f5f7f5;
   font-size: 14px;
@@ -61,7 +61,7 @@ aside {
   border-right: 1px solid #e1e7e3;
   position: fixed;
   inset: 0 auto 0 0;
-  padding: 30px 20px;
+  padding: 10px 10px;
   display: flex;
   flex-direction: column;
 }
@@ -109,7 +109,7 @@ aside nav {
   padding-top: 25px;
 }
 .aside-foot small {
-  letter-spacing: .5px;
+  letter-spacing: 0.5px;
   margin-top: 10px;
 }
 .dot {
@@ -247,7 +247,7 @@ button:hover {
   border-color: #93b5a0;
 }
 button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: wait;
 }
 .primary {
@@ -303,10 +303,10 @@ button:disabled {
   gap: 18px;
   flex-wrap: wrap;
 }
-.fields>label {
+.fields > label {
   min-width: 120px;
 }
-.fields>label:not(.grow) {
+.fields > label:not(.grow) {
   max-width: 200px;
 }
 .hint {
@@ -333,7 +333,7 @@ table {
 }
 th {
   font-size: 9px;
-  letter-spacing: .8px;
+  letter-spacing: 0.8px;
   color: #85938a;
   background: #f7f9f7;
   padding: 12px 9px;
@@ -353,14 +353,14 @@ td {
 .mapping td:nth-child(4) input {
   min-width: 145px;
 }
-.mapping input[type=checkbox] {
+.mapping input[type="checkbox"] {
   min-width: 18px;
   width: 18px;
   height: 18px;
   accent-color: #196448;
   margin: 7px;
 }
-.mapping input[type=number] {
+.mapping input[type="number"] {
   min-width: 64px;
   width: 70px;
 }
@@ -513,7 +513,9 @@ summary {
   color: #69816e;
 }
 textarea {
-  font: 12px/1.7 Consolas,monospace;
+  font:
+    12px/1.7 Consolas,
+    monospace;
   margin: 12px 0;
   resize: vertical;
 }
@@ -525,13 +527,13 @@ footer {
   justify-content: space-between;
 }
 [hidden] {
-  display: none!important;
+  display: none !important;
 }
 
 /* RESPONSIVE - BASE LAYOUT
    ------------------------
    Narrow-desktop and phone versions of the above. */
-@media(max-width:1150px) {
+@media (max-width: 1150px) {
   aside {
     width: 200px;
   }
@@ -553,7 +555,7 @@ footer {
     gap: 15px;
   }
 }
-@media(max-width:720px) {
+@media (max-width: 720px) {
   body {
     display: block;
   }
@@ -605,7 +607,7 @@ footer {
     flex: 1;
     padding: 12px;
   }
-  .fields>label {
+  .fields > label {
     flex: 1;
   }
   .run {
@@ -633,7 +635,7 @@ footer {
   border-bottom: 1px solid #dfe7e1;
   padding: 14px 0;
 }
-.diagnostic-row>summary {
+.diagnostic-row > summary {
   font-size: 13px;
 }
 .diagnostic-field {
@@ -653,7 +655,9 @@ footer {
 .diagnostic-field pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 12px/1.6 Consolas,monospace;
+  font:
+    12px/1.6 Consolas,
+    monospace;
   margin: 8px 0;
 }
 .diagnostic-type {
@@ -692,7 +696,7 @@ footer {
   margin: 14px 0;
   padding: 14px;
 }
-.template-field input[type=checkbox] {
+.template-field input[type="checkbox"] {
   width: 18px;
   height: 18px;
 }
@@ -703,7 +707,7 @@ footer {
 #mapping-templates button {
   margin: 8px 4px 8px 0;
 }
-#mapping-templates>label {
+#mapping-templates > label {
   margin-top: 12px;
 }
 
@@ -716,7 +720,7 @@ footer {
   gap: 8px;
   margin: 16px 0;
 }
-#ordered-steps [aria-current=step] {
+#ordered-steps [aria-current="step"] {
   border-color: #165f48;
   background: #edf5ef;
 }
@@ -757,7 +761,7 @@ footer {
 }
 #column-choices {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
   max-height: 260px;
   overflow: auto;
@@ -813,7 +817,7 @@ footer {
   align-items: center;
   gap: 5px;
 }
-.mapping-name [data-field=name] {
+.mapping-name [data-field="name"] {
   flex: 1;
 }
 .mapping-name [data-bulk-select] {
@@ -980,7 +984,7 @@ header h1 {
   gap: 10px;
   padding: 14px 4%;
 }
-.action-bar>span {
+.action-bar > span {
   margin-right: auto;
   color: #65766c;
   font-size: 12px;
@@ -999,9 +1003,9 @@ header h1 {
    Local Select2 styling; hidden native inputs stay the value boundary. */
 [data-choice-backed]:not(.literal-value),
 [data-transform-backed] {
-  display: none!important;
+  display: none !important;
 }
-.source-select+.select2 {
+.source-select + .select2 {
   min-width: 170px;
   max-width: 100%;
 }
@@ -1010,12 +1014,16 @@ header h1 {
   border: 1px solid #d4ded6;
   border-radius: 6px;
 }
-.select2-container--default .select2-selection--single .select2-selection__rendered {
+.select2-container--default
+  .select2-selection--single
+  .select2-selection__rendered {
   line-height: 36px;
   color: #2b3d31;
   font-size: 13px;
 }
-.select2-container--default .select2-selection--single .select2-selection__arrow {
+.select2-container--default
+  .select2-selection--single
+  .select2-selection__arrow {
   height: 36px;
 }
 .select2-dropdown {
@@ -1023,23 +1031,24 @@ header h1 {
   box-shadow: 0 6px 18px #193a2420;
   z-index: 1050;
 }
-.select2-container--default .select2-results__option--highlighted[aria-selected] {
+.select2-container--default
+  .select2-results__option--highlighted[aria-selected] {
   background: #196448;
 }
 .select2-search__field {
-  min-width: 0!important;
+  min-width: 0 !important;
 }
 .select2-results__options {
-  max-height: 240px!important;
+  max-height: 240px !important;
 }
 .select2-results__option {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
 .select2-hidden-accessible {
-  min-width: 0!important;
-  max-width: 1px!important;
-  min-height: 0!important;
+  min-width: 0 !important;
+  max-width: 1px !important;
+  min-height: 0 !important;
 }
 #columns tr.enhanced-row [data-choose-source] {
   display: none;
@@ -1066,7 +1075,7 @@ header h1 {
   padding: 3px 5px;
   font-size: 11px;
 }
-.transform-chip>span {
+.transform-chip > span {
   flex: 1;
 }
 .transform-chip button {
@@ -1090,16 +1099,16 @@ header h1 {
 /* RESPONSIVE - OVERRIDES
    ----------------------
    Phone adjustments for everything added after the base layout. */
-@media(max-width:1150px) {
+@media (max-width: 1150px) {
   .action-bar {
     left: 200px;
     padding: 12px 25px;
   }
-  .action-bar>span {
+  .action-bar > span {
     display: none;
   }
 }
-@media(max-width:720px) {
+@media (max-width: 720px) {
   main {
     padding-bottom: 155px;
   }
@@ -1123,10 +1132,10 @@ header h1 {
   #mapping-card {
     max-height: 580px;
   }
-  .source-select+.select2 {
+  .source-select + .select2 {
     min-width: 0;
   }
-  .mapping .source-select+.select2 {
+  .mapping .source-select + .select2 {
     min-width: 170px;
   }
   .flow button {
@@ -1164,7 +1173,7 @@ header h1 {
   gap: 5px;
   white-space: nowrap;
 }
-.stage-flow li+li::before {
+.stage-flow li + li::before {
   content: "→";
   color: #9fb6a8;
   margin-right: 2px;
@@ -1190,7 +1199,7 @@ header h1 {
   margin-right: 5px;
   vertical-align: middle;
 }
-@media(max-width:720px) {
+@media (max-width: 720px) {
   .stage-flow {
     font-size: 10px;
     gap: 4px;
@@ -1206,6 +1215,21 @@ header h1 {
 }
 .stage-note .hint {
   margin-top: 6px;
+}
+.saved-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.saved-pipeline .pipeline {
+  flex: 1;
+  min-width: 0;
+}
+.delete-pipeline {
+  padding: 5px;
+  font-size: 10px;
+  color: #9c4037;
+  flex-shrink: 0;
 }
 
 /* ONE SCROLL REGION

@@ -228,6 +228,13 @@ def handler_for(app):
                     if run and "step_status" in run:
                         page.update(step_id=body.get("step_id"), step_status=run["step_status"], partial=run["partial"])
                     self.respond(200, page)
+                elif path == "/api/pipelines/delete":
+                    pipeline_id = body.get("id")
+                    require(isinstance(pipeline_id, str) and 0 < len(pipeline_id) <= 64, "Invalid pipeline ID")
+                    if app.store.delete_pipeline(pipeline_id):
+                        self.respond(200, {"deleted": True})
+                    else:
+                        self.respond(404, {"error": "Saved pipeline not found"})
                 elif path == "/api/pipelines":
                     pipeline_id = body.get("id")
                     require(pipeline_id is None or isinstance(pipeline_id, str) and len(pipeline_id) <= 64, "Invalid pipeline ID")

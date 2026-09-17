@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let maxOutputColumns=4096;
 let token, definition, pipelineId = null, saved = [], dirty = false, busy = false, timer;
-const blank = () => ({version:1,name:"Untitled pipeline",source:{kind:"csv",path:"",delimiter:";"},columns:[],destination:{kind:"csv",delimiter:";"}});
+const blank = () => ({version:2,name:"Untitled pipeline",source:{kind:"csv",path:"",delimiter:";"},columns:[],destination:{kind:"csv",delimiter:";"}});
 function notify(message, error = false) { $("notice").textContent=message; $("notice").className=error?"error":""; }
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-ETL-Token":token},body:JSON.stringify(body)});
@@ -86,7 +86,7 @@ function openDefinition(spec,id=null) {
   definition=structuredClone(spec); pipelineId=id; dirty=false; render(); renderSaved();
 }
 function renderSaved() {
-  $("pipelines").innerHTML=saved.length?saved.map(p=>`<button class="pipeline ${p.id===pipelineId?"active":""}" data-pipeline="${esc(p.id)}">${esc(p.name)}<small>${esc(p.spec.kind==="ordered_query_export"?"ORDERED QUERIES":p.spec.source.kind.toUpperCase())} → ${esc(p.spec.kind==="ordered_query_export"?`${p.spec.steps.length} FILES`:p.spec.destination.kind.toUpperCase())}</small></button>`).join(""):'<p class="muted">Save your first pipeline to reuse it here.</p>';
+  $("pipelines").innerHTML=saved.length?saved.map(p=>`<div class="saved-pipeline"><button class="pipeline ${p.id===pipelineId?"active":""}" data-pipeline="${esc(p.id)}">${esc(p.name)}<small>${esc(p.spec.kind==="ordered_query_export"?"ORDERED QUERIES":p.spec.source.kind.toUpperCase())} → ${esc(p.spec.kind==="ordered_query_export"?`${p.spec.steps.length} FILES`:p.spec.destination.kind.toUpperCase())}</small></button><button class="delete-pipeline" data-delete-pipeline="${esc(p.id)}" aria-label="Delete pipeline ${esc(p.name)}">Delete</button></div>`).join(""):'<p class="muted">Save your first pipeline to reuse it here.</p>';
 }
 async function refreshSaved() { saved=await api("/api/pipelines");renderSaved(); }
 function preview(report) {
@@ -111,7 +111,20 @@ document.addEventListener("input",event=>{if(event.target.closest("main") && eve
 window.addEventListener("beforeunload",event=>{if(dirty){event.preventDefault();event.returnValue="";}});
 $("source-kind").onchange=()=>{sourceFields();dirty=true;};
 $("new").onclick=()=>{if(!dirty||confirm("Discard unsaved changes and create a new pipeline?"))openDefinition(blank());};
-$("pipelines").onclick=event=>{const button=event.target.closest("[data-pipeline]");if(button&&(!dirty||confirm("Discard unsaved changes?")))openDefinition(saved.find(p=>p.id===button.dataset.pipeline).spec,button.dataset.pipeline);};
+$("pipelines").onclick=event=>{
+  const remove=event.target.closest('[data-delete-pipeline]');
+  if(remove){
+    const item=saved.find(p=>p.id===remove.dataset.deletePipeline);if(!item)return;
+    if(!confirm(`Delete saved pipeline "${item.name}"? Run history and exported files will be kept. If this pipeline is open, its current draft will remain available.`))return;
+    return action(async()=>{
+      await api('/api/pipelines/delete',{id:item.id});
+      if(pipelineId===item.id){pipelineId=null;dirty=true;}
+      await refreshSaved();notify('Saved pipeline deleted. History and exports were kept.');
+    });
+  }
+  const button=event.target.closest('[data-pipeline]');
+  if(button&&(!dirty||confirm('Discard unsaved changes?')))openDefinition(saved.find(p=>p.id===button.dataset.pipeline).spec,button.dataset.pipeline);
+};
 $("columns").onclick=event=>{const button=event.target.closest("[data-remove]");if(button){read();definition.columns.splice(Number(button.dataset.remove),1);renderColumns();dirty=true;}};
 $("add").onclick=()=>action(async()=>{read();definition.columns.push({name:"",source:"",type:"string"});renderColumns();dirty=true;});
 $("inspect").onclick=()=>action(async()=>{

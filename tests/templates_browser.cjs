@@ -23,6 +23,10 @@ const assert=require("node:assert/strict");
     await page.getByRole("status").filter({hasText:"no mappings"}).waitFor();
     assert.equal(await page.locator("#columns tr").count(),originalMappingCount);
     await page.locator("#new").click();
+    assert.equal(await page.evaluate(()=>definition.version),2,'New pipelines use conservative v2');
+    assert.equal(await page.evaluate(()=>definition.destination.null_value),undefined,'Keep the v2 NULL token default');
+    // Deliberately create a legacy draft to exercise the version boundary.
+    await page.evaluate(()=>openDefinition({...read(),version:1}));
     await page.getByLabel("File path inside workspace").fill("diagnostics.csv");
     await page.getByRole("button",{name:"Apply selected revision",exact:true}).click();
     await page.getByRole("status").filter({hasText:"processing versions differ"}).waitFor();

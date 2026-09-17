@@ -80,6 +80,24 @@ class WebTests(unittest.TestCase):
             time.sleep(.02)
         self.fail("Background run did not finish")
 
+    def test_delete_saved_pipeline_keeps_run_snapshot_and_exports(self):
+        saved = self.app.store.save(self.spec)
+        other = self.app.store.save(self.spec)
+        run_id = self.app.submit(self.spec)
+        run = self.wait_run(run_id)
+        self.assertEqual(run['status'], 'completed')
+        directory = Path(run['report']['directory'])
+        files = {p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}
+        self.assertEqual(self.request('POST', '/api/pipelines/delete', {'id': saved}, {'X-ETL-Token': 'wrong'})[0], 403)
+        self.assertEqual(len(self.app.store.pipelines()), 2)
+        self.assertEqual(self.request('POST', '/api/pipelines/delete', {'id': saved})[0], 200)
+        self.assertEqual([p['id'] for p in self.app.store.pipelines()], [other])
+        self.assertEqual(self.app.store.run(run_id), run)
+        self.assertEqual({p.name: p.read_bytes() for p in directory.iterdir() if p.is_file()}, files)
+        self.assertEqual(self.request('POST', '/api/pipelines/delete', {'id': saved})[0], 404)
+        for value in (None, '', [], 12):
+            self.assertEqual(self.request('POST', '/api/pipelines/delete', {'id': value})[0], 400)
+
     def test_v2_preview_and_background_history_encode_native_results(self):
         self.spec["version"] = 2
         self.spec["columns"] = [
