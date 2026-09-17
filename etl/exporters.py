@@ -69,6 +69,7 @@ class OutputWriter:
         self.encoding = destination.get("encoding", "utf-8-sig")
         self.null_value = destination.get("null_value", "" if version == 1 else "\\N")
         self.formula_policy = destination.get("formula_policy", "apostrophe" if version == 1 else "preserve")
+        self.protected_null = self._protect(self.null_value)
         self.workbook = None
         self.count = 0
         self.finished = False
@@ -93,7 +94,7 @@ class OutputWriter:
     def format_value(self, value):
         if self.version == 1:
             return excel_safe(value) if self.kind == "csv" else text(value)
-        null = self._protect(self.null_value)
+        null = self.protected_null
         if value is None:
             return null
         rendered = scalar_text(value)

@@ -25,6 +25,8 @@ def convert_value(value, kind, *, version):
         return None
     if version == 2 and kind == "decimal" and isinstance(value, float):
         raise ValueError("decimal conversion requires text, integer or Decimal; float precision cannot be recovered")
+    if kind == "string" and type(value) is str:
+        return value  # text() is the identity for str; skip the round trip.
     raw = value
     value = text(value)
     if kind == "string":

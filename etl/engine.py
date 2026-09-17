@@ -1,5 +1,6 @@
 """Pure mapping and validation with bounded previews and streamed exports."""
 import uuid
+from typing import NamedTuple
 from contextlib import ExitStack
 from decimal import InvalidOperation
 from itertools import islice
@@ -47,16 +48,51 @@ def lookup_sets(spec, root):
     return result
 
 
-def process_row(pipeline: Pipeline, row: SourceRow, lookups) -> RowResult:
+class PreparedColumn(NamedTuple):
+    """One column's row-invariant settings, resolved once before the run."""
+
+    name: str
+    source: str | None
+    literal: object
+    transforms: tuple[str, ...]
+    target_type: str
+    required: bool
+    max_length: int | None
+    has_lookup: bool
+
+
+def prepare_columns(pipeline: Pipeline) -> tuple[PreparedColumn, ...]:
+    """Hoist the per-column settings out of the per-row loop.
+
+    The rule mapping, transform names and target type never vary by row, so
+    resolving them per value was pure overhead on wide sources.
+    """
+    prepared = []
+    for column in pipeline.columns:
+        rules = {rule.name: rule.parameters for rule in column.validations}
+        prepared.append(PreparedColumn(
+            name=column.name, source=column.source, literal=column.literal,
+            transforms=tuple(item.name for item in column.transforms or ()),
+            target_type=column.target_type or "string",
+            required=bool(rules.get("required", {}).get("value")),
+            max_length=rules["max_length"]["value"] if "max_length" in rules else None,
+            has_lookup="lookup" in rules,
+        ))
+    return tuple(prepared)
+
+
+def process_row(pipeline: Pipeline, row: SourceRow, lookups, prepared=None) -> RowResult:
     """One field flow for both execution modes; retain every completed stage."""
     require(pipeline.version in (1, 2), "Unsupported processing version")
+    if prepared is None:
+        prepared = prepare_columns(pipeline)
+    version, values = pipeline.version, row.values
     transformed, converted, errors = {}, {}, []
-    for column in pipeline.columns:
-        name = column.name
-        value = row.values[column.source] if column.source is not None else column.literal
+    for name, source, literal, transforms, target_type, required, maximum, has_lookup in prepared:
+        value = values[source] if source is not None else literal
         try:
-            for operation in column.transforms or ():
-                value = apply_transform(value, operation.name, version=pipeline.version)
+            for operation in transforms:
+                value = apply_transform(value, operation, version=version)
         except ConfigError:
             raise
         except (ValueError, InvalidOperation, OverflowError) as error:
@@ -64,24 +100,23 @@ def process_row(pipeline: Pipeline, row: SourceRow, lookups) -> RowResult:
             errors.append(FieldError(name, "invalid_transform_input", str(error), "transform"))
             continue
         transformed[name] = value
-        rules = {rule.name: rule.parameters for rule in column.validations}
-        if rules.get("required", {}).get("value"):
+        if required:
             error = required_error(name, value)
             if error:
                 errors.append(error)
-        if "max_length" in rules:
-            error = max_length_error(name, value, rules["max_length"]["value"])
+        if maximum is not None:
+            error = max_length_error(name, value, maximum)
             if error:
                 errors.append(error)
         try:
-            result = convert_value(value, column.target_type or "string", version=pipeline.version)
+            result = convert_value(value, target_type, version=version)
         except ConfigError:
             raise
         except (ValueError, InvalidOperation, OverflowError) as error:
             errors.append(FieldError(name, "invalid_type", str(error), "conversion"))
             continue
         converted[name] = result
-        require(pipeline.version == 1 or "lookup" not in rules or name in lookups, f"Lookup not prepared: {name}")
+        require(version == 1 or not has_lookup or name in lookups, f"Lookup not prepared: {name}")
         if name in lookups:
             error = lookup_error(name, result, lookups[name])
             if error:
@@ -119,8 +154,9 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
             # Failed runs never expose their partial files for download.
             stack.callback(writer.finish)
             rejected = RejectedWriter(directory, spec["destination"], stack, version=pipeline.version)
+        prepared = prepare_columns(pipeline)
         for row in islice(rows, limit) if limit is not None else rows:
-            result = process_row(pipeline, row, lookups)
+            result = process_row(pipeline, row, lookups, prepared)
             number = row.number
             if on_row is not None:
                 on_row(result)
