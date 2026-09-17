@@ -1,0 +1,8 @@
+{
+  "name": "etl-studio-browser-tests",
+  "private": true,
+  "description": "Playwright browser acceptance tests for the local ETL Studio UI.",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
