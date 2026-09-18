@@ -106,6 +106,136 @@ preview, save, run.
 
 ---
 
+## Ένα πλήρες παράδειγμα που τρέχει
+
+Τα αρχεία είναι στο [examples/templates_demo/](examples/templates_demo/). Τα
+αποτελέσματα παρακάτω είναι **πραγματικά** — βγήκαν τρέχοντας τον κώδικα.
+
+### Το template: «Monthly customer extract»
+
+| Στήλη εξόδου | Τύπος | Transforms | Required | Max length |
+|---|---|---|---|---|
+| `customer_code` | string | trim | ναι | 10 |
+| `amount` | decimal | — | όχι | — |
+| `country` | string | upper | όχι | — |
+| `origin` | string | — | όχι | — |
+
+Πουθενά δεν λέει από πού έρχονται. Μόνο τι πρέπει να βγει.
+
+### Δύο πηγές που δεν μοιάζουν σε τίποτα
+
+`erp_a.csv` — διαχωριστικό `;`, ελληνικά ονόματα στηλών, σκουπίδια γύρω από τιμές:
+
+```
+KWDIKOS;POSO;XWRA
+  A-1001  ;1234.50;gr
+A-1002;-99.00;GR
+A-1003;0.00;cy
+```
+
+`erp_b.csv` — διαχωριστικό `,`, άλλα ονόματα, και μια στήλη παραπάνω που δεν τη
+θέλουμε:
+
+```
+cust_id,total,cc,extra_noise
+B7,15.75,it,ignore me
+B8,-3.10,IT,ignore me
+B9,0.00,fr,ignore me
+```
+
+### Το δέσιμο — το μόνο που δηλώνεις χωριστά
+
+| Στήλη εξόδου | Από το A | Από το B |
+|---|---|---|
+| `customer_code` | `KWDIKOS` | `cust_id` |
+| `amount` | `POSO` | `total` |
+| `country` | `XWRA` | `cc` |
+| `origin` | σταθερό `ERP-A` | σταθερό `ERP-B` |
+
+Το `extra_noise` απλώς δεν το διαλέγεις. Δεν υπάρχει στο template, άρα δεν βγαίνει.
+
+### Το αποτέλεσμα
+
+```
+customer_code;amount;country;origin        customer_code;amount;country;origin
+A-1001;1234.50;GR;ERP-A                    B7;15.75;IT;ERP-B
+A-1002;-99.00;GR;ERP-A                     B8;-3.10;IT;ERP-B
+A-1003;0.00;CY;ERP-A                       B9;0.00;FR;ERP-B
+```
+
+Ίδια κεφαλίδα, ίδιοι τύποι, ίδιοι κανόνες. Πρόσεξε τι έγινε μόνο του:
+
+- `  A-1001  ` → `A-1001` (το trim του template)
+- `gr` → `GR`, `it` → `IT` (το upper)
+- `-99.00` έμεινε **αρνητικός αριθμός**, χωρίς απόστροφο μπροστά — αυτό είναι το
+  processing version 2
+
+### Πόσο διαφέρουν τα δύο pipelines που βγήκαν
+
+Έβγαλα diff στα δύο παραγόμενα αρχεία. Διαφέρουν **μόνο** σε αυτά:
+
+```
+ "name": "Monthly extract - erp_a"    |  "name": "Monthly extract - erp_b"
+ "path": ".../erp_a.csv"              |  "path": ".../erp_b.csv"
+ "delimiter": ";"                     |  "delimiter": ","
+ "source": "KWDIKOS"                  |  "source": "cust_id"
+ "source": "POSO"                     |  "source": "total"
+ "source": "XWRA"                     |  "source": "cc"
+ "literal": "ERP-A"                   |  "literal": "ERP-B"
+```
+
+Τύποι, transforms, required, max_length: **καμία διαφορά**. Αυτό ακριβώς αγοράζεις
+με το template — δεν γίνεται να ξεχάσεις το `max_length: 10` στο δεύτερο.
+
+---
+
+## Τι γίνεται όταν τα δεδομένα δεν σέβονται τους κανόνες
+
+Τρίτη πηγή, `erp_c.csv`, με το ίδιο ακριβώς template:
+
+```
+KWDIKOS;POSO;XWRA
+C-1;10.00;es
+C-THIS-CODE-IS-TOO-LONG;20.00;es
+;30.00;es
+C-4;not a number;es
+```
+
+Αποτέλεσμα: **processed 4, valid 1, invalid 3**.
+
+Στο `valid.csv` περνάει μόνο η πρώτη. Οι άλλες τρεις πάνε στο `rejected.csv`, η
+καθεμία με το ακριβές στάδιο που την έκοψε:
+
+| Γραμμή | Στάδιο | Μήνυμα |
+|---|---|---|
+| `C-THIS-CODE-IS-TOO-LONG` | `max_length` | exceeds 10 characters |
+| κενός κωδικός | `required` | required value is missing |
+| `not a number` | `conversion` | expected a number using a decimal point |
+
+Δύο πράγματα να προσέξεις:
+
+**Καμία γραμμή δεν χάνεται σιωπηλά.** Το `rejected.csv` κρατάει και την αρχική
+γραμμή όπως διαβάστηκε, και τι είχε γίνει μέχρι να σκάσει.
+
+**Η σειρά των σταδίων μετράει.** Το `C-THIS-CODE-IS-TOO-LONG` κόπηκε στο
+`max_length`, **πριν** καν δοκιμαστεί ο τύπος. Και το `not a number` πέρασε το
+required (έχει τιμή), και κόπηκε μετά στη μετατροπή σε decimal.
+
+---
+
+## Ποιο παράδειγμα **δεν** χρειάζεται template
+
+Μία βάση, ένας πίνακας, τον θέλεις όπως είναι:
+
+```
+Discover a source → διάλεξε πίνακα → Add selected columns → Run
+```
+
+Εδώ το template θα σε έβαζε να γράψεις τα ονόματα των στηλών δεύτερη φορά, στο
+χέρι, για να τα δέσεις μετά πάλι στα ίδια. Καθαρή ζημιά.
+
+---
+
 ## Τι είναι το revision
 
 Μια **αποθηκευμένη έκδοση** του template.

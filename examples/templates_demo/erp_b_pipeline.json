@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "name": "Monthly extract - erp_b",
+  "source": {
+    "kind": "csv",
+    "path": "examples/templates_demo/erp_b.csv",
+    "delimiter": ","
+  },
+  "columns": [
+    {
+      "name": "customer_code",
+      "source": "cust_id",
+      "type": "string",
+      "transforms": [
+        "trim"
+      ],
+      "required": true,
+      "max_length": 10
+    },
+    {
+      "name": "amount",
+      "source": "total",
+      "type": "decimal",
+      "transforms": [],
+      "required": false
+    },
+    {
+      "name": "country",
+      "source": "cc",
+      "type": "string",
+      "transforms": [
+        "upper"
+      ],
+      "required": false
+    },
+    {
+      "name": "origin",
+      "literal": "ERP-B",
+      "type": "string",
+      "transforms": [],
+      "required": false
+    }
+  ],
+  "destination": {
+    "kind": "csv",
+    "delimiter": ";"
+  }
+}

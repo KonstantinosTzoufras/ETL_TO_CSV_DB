@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "name": "Monthly extract - erp_a",
+  "source": {
+    "kind": "csv",
+    "path": "examples/templates_demo/erp_a.csv",
+    "delimiter": ";"
+  },
+  "columns": [
+    {
+      "name": "customer_code",
+      "source": "KWDIKOS",
+      "type": "string",
+      "transforms": [
+        "trim"
+      ],
+      "required": true,
+      "max_length": 10
+    },
+    {
+      "name": "amount",
+      "source": "POSO",
+      "type": "decimal",
+      "transforms": [],
+      "required": false
+    },
+    {
+      "name": "country",
+      "source": "XWRA",
+      "type": "string",
+      "transforms": [
+        "upper"
+      ],
+      "required": false
+    },
+    {
+      "name": "origin",
+      "literal": "ERP-A",
+      "type": "string",
+      "transforms": [],
+      "required": false
+    }
+  ],
+  "destination": {
+    "kind": "csv",
+    "delimiter": ";"
+  }
+}
