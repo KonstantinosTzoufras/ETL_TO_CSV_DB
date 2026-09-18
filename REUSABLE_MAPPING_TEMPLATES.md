@@ -1,5 +1,7 @@
 # Reusable mapping templates — copy on apply
 
+Plain-language companion: [TEMPLATES_EXPLAINED_EL.md](TEMPLATES_EXPLAINED_EL.md).
+
 Templates describe target fields and existing processing rules. Applying a revision
 copies them into an unbound draft. Explicit binding generates a normal pipeline;
 the engine, exporters and run history never resolve a template reference.
@@ -13,8 +15,8 @@ format version (1), processing version (1 or 2), and an ordered tuple of
 
 Frozen models recursively freeze nested collections. JSON validation rejects
 unknown keys, duplicate target names, unsupported types/transforms, invalid flags,
-versions and length limits. Templates contain 1–256 fields; each revision is at
-most 1 MB. Processing version defaults to 2 for a new blueprint.
+versions and length limits. Templates hold 1 field up to the pipeline column limit (`MAX_OUTPUT_COLUMNS`);
+each revision is at most 1 MB. Processing version defaults to 2 for a new blueprint.
 
 Source definitions, source column bindings, literals, lookup source definitions,
 connection settings and credentials are not template properties and are rejected.
@@ -49,8 +51,9 @@ Removing a local template file cannot affect already copied/generated pipelines.
 5. Configure required lookups explicitly using the existing lookup JSON shape.
 6. Generate mappings, then use ordinary preview, diagnostics, save and export.
 
-The **New empty v2 pipeline** action explicitly creates a new draft. It does not
-change an existing v1 pipeline. Existing New pipeline behavior remains unchanged.
+**New pipeline** creates the draft; it has produced version 2 since v2 became the
+default, so the separate *New empty v2 pipeline* action was removed as a duplicate.
+It does not change an existing v1 pipeline.
 
 Required/optional describes row validation, not whether a configuration binding
 is needed. Both unresolved required and unresolved optional targets block pipeline

@@ -49,7 +49,9 @@ revisions. Apply a revision to an empty draft of the same processing version, bi
 every target explicitly, then generate ordinary pipeline mappings. Optional fields
 still need a binding; NULL and empty-string literals are distinct choices. Required
 lookups are configured in the pipeline, never in the template. See
-[Reusable Mapping Templates](REUSABLE_MAPPING_TEMPLATES.md).
+[Reusable Mapping Templates](REUSABLE_MAPPING_TEMPLATES.md), or
+[Τι είναι και πότε το θέλεις](TEMPLATES_EXPLAINED_EL.md) for the same feature in
+plain language.
 
 ## Χρήση χωρίς οθόνη
 
