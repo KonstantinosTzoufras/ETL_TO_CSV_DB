@@ -4,7 +4,14 @@ const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;",
 let maxOutputColumns=4096;
 let token, definition, pipelineId = null, saved = [], dirty = false, busy = false, timer;
 const blank = () => ({version:2,name:"Untitled pipeline",source:{kind:"csv",path:"",delimiter:";"},columns:[],destination:{kind:"csv",delimiter:";"}});
-function notify(message, error = false) { $("notice").textContent=message; $("notice").className=error?"error":""; }
+let noticeTimer;
+// A banner outlives the situation it described, so it clears itself: failures
+// stay longer than confirmations, and starting another action clears both.
+function notify(message, error = false) {
+  clearTimeout(noticeTimer);
+  $("notice").textContent=message; $("notice").className=error?"error":"";
+  if(message) noticeTimer=setTimeout(()=>{$("notice").textContent="";$("notice").className="";}, error?15000:8000);
+}
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-ETL-Token":token},body:JSON.stringify(body)});
   const result = await response.json();
@@ -14,6 +21,7 @@ async function api(path, body) {
 async function action(fn) {
   if(busy) return;
   busy=true;
+  notify("");  // the previous outcome no longer describes what is happening
   const buttons=[...document.querySelectorAll("button")].map(button=>[button,button.disabled]);
   buttons.forEach(([button])=>button.disabled=true);
   try { await fn(); } catch(error) { notify(error.message,true); }
