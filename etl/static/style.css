@@ -1253,3 +1253,14 @@ header h1 {
 #mapping-card .table-scroll:has(tbody tr) {
   min-height: 180px;
 }
+
+/* NUMBERED STEPS
+   --------------
+   Ordered instructions where a panel's controls must be used in sequence. */
+.steps {
+  margin: 10px 0 0;
+  padding-left: 22px;
+}
+.steps li {
+  margin: 5px 0;
+}

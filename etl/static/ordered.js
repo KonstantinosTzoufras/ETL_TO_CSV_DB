@@ -7,7 +7,6 @@ function renderOrderedMode(){
  $("ordered-editor").hidden=!active;
  $("source-kind").disabled=active;$("query-connection").disabled=active;
  $("query-connections").hidden=active;
- $("template-new-draft").hidden=active;
  $("name").parentElement.firstChild.textContent=active?"Step name":"Pipeline name";
 }
 function openOrdered(spec,id=null){

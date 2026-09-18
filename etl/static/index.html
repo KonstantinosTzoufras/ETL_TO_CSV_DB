@@ -54,11 +54,18 @@
     </details>
   </div></section>
   <details class="card" id="mapping-templates"><summary>Reusable mapping templates</summary>
-    <p class="hint">Target fields and rules only. Applying a revision copies its rules; you choose every binding. Existing mappings cannot be replaced.</p>
-    <button id="template-new-draft">New empty v2 pipeline</button><button id="template-refresh">List templates</button>
+    <p class="hint">For when several <em>different</em> sources must produce the <b>same</b> output file: same column names, same types, same rules. You describe that output once here, then bind it to each source separately. Exporting one table as it is needs none of this.</p>
+    <ol class="hint steps">
+      <li>Describe the output under <b>Create or revise a template</b>, then <b>Create new template</b>.</li>
+      <li>Start a pipeline with <b>＋ New pipeline</b> and choose its source. A template only applies to a pipeline that has no mappings yet.</li>
+      <li><b>List templates</b>, pick a revision, then <b>Apply selected revision</b>.</li>
+      <li>In the panel that opens: <b>Read binding columns</b>, say where each target comes from, then <b>Generate pipeline mappings</b>.</li>
+    </ol>
+    <button id="template-refresh">List templates</button>
     <label>Template revision<select id="template-select" aria-label="Template revision"><option value="">Select a revision</option></select></label>
+    <p class="hint">A revision is one saved version of a template. Saving creates a new revision and never overwrites an earlier one, so pipelines already generated from it keep behaving the same.</p>
     <button id="template-load">Load revision into editor</button><button id="template-apply">Apply selected revision</button>
-    <details><summary>Create or revise a template</summary><p id="template-editor-origin" class="hint">New template</p>
+    <details><summary>Create or revise a template</summary><p id="template-editor-origin" class="hint">New template</p><p class="hint">Each target field is one column of the output file: a name, a type and its rules. It never records a source — that is chosen per pipeline, in step 4.</p>
       <div class="fields"><label class="grow">Template name<input id="template-name" maxlength="120"></label><label>Template processing version<select id="template-version"><option value="2">2 — conservative</option><option value="1">1 — legacy</option></select></label></div>
       <div id="template-fields"></div><button id="template-add-field">Add target field</button><button id="template-create">Create new template</button><button id="template-revise">Save new revision</button>
     </details>

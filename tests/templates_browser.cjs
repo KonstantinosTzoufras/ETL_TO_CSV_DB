@@ -10,7 +10,8 @@ const assert=require("node:assert/strict");
     await page.waitForFunction(()=>document.querySelector("#name").value.includes("Customers"));
     const originalMappingCount=await page.locator("#columns tr").count();
     await page.getByText("Reusable mapping templates",{exact:true}).click();
-    await page.getByText("Create or revise a template",{exact:true}).click();
+    // The step list names this panel too, so target the disclosure itself.
+    await page.locator("#mapping-templates summary").filter({hasText:"Create or revise a template"}).click();
     await page.getByLabel("Template name",{exact:true}).fill("UI target template");
     await page.locator("#template-fields .template-field").first().getByLabel("Output name",{exact:true}).fill("note");
     await page.locator("#template-fields .template-field").first().getByLabel("Required",{exact:true}).check();
@@ -30,7 +31,7 @@ const assert=require("node:assert/strict");
     await page.getByLabel("File path inside workspace").fill("diagnostics.csv");
     await page.getByRole("button",{name:"Apply selected revision",exact:true}).click();
     await page.getByRole("status").filter({hasText:"processing versions differ"}).waitFor();
-    await page.getByRole("button",{name:"New empty v2 pipeline",exact:true}).click();
+    await page.locator("#new").click();
     await page.getByLabel("File path inside workspace").fill("diagnostics.csv");
     await page.getByRole("button",{name:"Apply selected revision",exact:true}).click();
     await page.getByRole("heading",{name:"Explicit template bindings",exact:true}).waitFor();

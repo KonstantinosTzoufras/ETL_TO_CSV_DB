@@ -58,7 +58,6 @@ $("template-create").onclick=()=>action(async()=>{const value=await templateApi(
 $("template-revise").onclick=()=>action(async()=>{if(!templateEditorRevision)throw new Error("Load a revision before saving a new revision.");const value=await templateApi("revision",{id:templateEditorRevision.id,base_revision:templateEditorRevision.revision,definition:blueprint()});loadTemplateEditor(value);await listTemplates(value);notify("New revision saved. Existing copied drafts, pipelines and runs are unchanged.");});
 $("template-add-field").onclick=()=>{addTemplateField();dirty=true;};
 $("template-fields").onclick=event=>{if(event.target.closest("[data-remove-target]")){event.target.closest(".template-field").remove();dirty=true;}};
-$("template-new-draft").onclick=()=>{if(!dirty||confirm("Discard unsaved pipeline changes and create an empty v2 pipeline?")){const spec=blank();spec.version=2;openDefinition(spec);notify("Created an empty v2 draft. Select a source before applying a template.");}};
 $("template-apply").onclick=()=>action(async()=>{
   if(templateDraft)throw new Error("A copied template is already pending. Finish it or start a new draft.");
   const request={...selectedTemplate(),spec:read()};
