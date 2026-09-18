@@ -23,6 +23,7 @@ from .queries import QueryError, connection_policies, query_from_dict
 from .sources import inspect_source
 from .spec import ConfigError, require, validate, MAX_OUTPUT_COLUMNS
 from .store import Store
+from .binding_profiles import dispatch as profile_request, provenance
 from .templates import TemplateStore, dispatch as template_request
 
 ASSETS = Path(__file__).parent / "static"
@@ -198,6 +199,8 @@ def handler_for(app):
                     self.respond(200, {"ok": True})
                 elif path.startswith("/api/templates/"):
                     self.respond(200, template_request(app.templates, path.removeprefix("/api/templates/"), body))
+                elif path.startswith("/api/profiles/"):
+                    self.respond(200, profile_request(app.store, app.templates, path.removeprefix("/api/profiles/"), body))
                 elif path.startswith("/api/discovery/"):
                     self.respond(200, discover(app.root, path.removeprefix("/api/discovery/"), body))
                 elif path == "/api/columns":
@@ -238,7 +241,9 @@ def handler_for(app):
                 elif path == "/api/pipelines":
                     pipeline_id = body.get("id")
                     require(pipeline_id is None or isinstance(pipeline_id, str) and len(pipeline_id) <= 64, "Invalid pipeline ID")
-                    self.respond(200, {"id": app.store.save(body.get("spec"), pipeline_id)})
+                    # Provenance is stored beside the definition, never inside it:
+                    # nothing downstream can read it, so nothing can act on it.
+                    self.respond(200, {"id": app.store.save(body.get("spec"), pipeline_id, provenance(body.get("provenance")))})
                 elif path == "/api/runs":
                     self.respond(202, {"id": app.submit(body.get("spec"))})
                 else:

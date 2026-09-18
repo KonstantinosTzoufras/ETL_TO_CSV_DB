@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import threading
+import unicodedata
 import uuid
 
 from .models import _Immutable, Transform
@@ -154,6 +155,78 @@ def _empty_draft(spec, template):
     return json.loads(json.dumps(spec, allow_nan=False))
 
 
+def _fold(name):
+    """Case and width folded, so CUSTOMER_CODE and customer_code agree."""
+    return unicodedata.normalize("NFKC", name).casefold()
+
+
+def _key(name):
+    """_fold plus separators, so CustomerCode and customer code agree too.
+
+    Accents are deliberately kept: folding them would equate two distinct Greek
+    names, which is a judgement about language rather than an identity rule.
+    """
+    folded = _fold(name)
+    for character in ("_", "-", ".", " "):
+        folded = folded.replace(character, "")
+    return folded
+
+
+# Ordered loosest-last. Each is an identity rule, never a similarity score:
+# no edit distance, prefixes, synonyms, position or type is ever consulted.
+_TIERS = (("identical", lambda name: name), ("case", _fold), ("separators", _key))
+
+
+def propose_bindings(template, columns):
+    """Suggest a source column per target where exactly one name agrees.
+
+    Pure: reads nothing, writes nothing and never returns a literal binding.
+    A target with no single agreeing column is left for the operator, and one
+    with several is reported as ambiguous rather than resolved by a looser rule.
+    """
+    # Accept either the stored model or the copied dict the browser holds.
+    template = template if isinstance(template, MappingTemplate) else template_from_dict(template)
+    require(isinstance(columns, list) and all(isinstance(c, str) for c in columns), "Source columns must be a list of names")
+    usable = [column for column in columns if column.strip()]
+    proposals = []
+    for target in template.fields:
+        proposals.append(_propose_one(target.output_name, usable))
+    return proposals
+
+
+def _propose_one(output_name, columns):
+    # Target names are non-blank by validation; blank source columns are dropped
+    # by the caller, so both sides here are real names.
+    for rule, normalise in _TIERS:
+        wanted = normalise(output_name)
+        candidates = [column for column in columns if normalise(column) == wanted]
+        if len(candidates) == 1:
+            return {"binding": {"source": candidates[0]}, "status": "matched", "rule": rule, "candidates": candidates}
+        if len(candidates) > 1:
+            # A looser tier can only add candidates, so stop rather than widen.
+            return {"binding": None, "status": "ambiguous", "rule": rule, "candidates": candidates}
+    return {"binding": None, "status": "unmatched", "rule": None, "candidates": []}
+
+
+def match_template(template, columns, locked=None):
+    """propose_bindings, but never disturbing a target the operator already set.
+
+    `locked` is one boolean per target. The values themselves stay in the browser:
+    matching decides nothing about them, so it has no reason to receive them.
+    """
+    proposals = propose_bindings(template, columns)
+    require(locked is None or (isinstance(locked, list) and all(type(f) is bool for f in locked)),
+            "locked must be a list of booleans, one per target")
+    require(locked is None or len(locked) == len(proposals), "locked must cover every target")
+    for proposal, is_locked in zip(proposals, locked or [False] * len(proposals)):
+        if is_locked:
+            proposal.update(binding=None, status="kept", rule=None, candidates=[])
+    counts = {"matched": 0, "ambiguous": 0, "unmatched": 0, "kept": 0}
+    for proposal in proposals:
+        counts[proposal["status"]] += 1
+    return {"proposals": proposals, "counts": counts}
+
+
 def apply_template(template, spec):
     template = template_from_dict(template_to_dict(template))
     return {"pipeline": _empty_draft(spec, template), "template": template_to_dict(template),
@@ -187,6 +260,7 @@ def dispatch(store, operation, body):
         "list": set(), "read": {"id", "revision"}, "create": {"definition"},
         "revision": {"id", "base_revision", "definition"},
         "apply": {"id", "revision", "spec"}, "bind": {"template", "spec", "bindings"},
+        "match": {"template", "columns", "locked"},
     }
     require(operation in allowed, "Unknown template operation")
     keys(body, allowed[operation], "template request")
@@ -200,4 +274,6 @@ def dispatch(store, operation, body):
         return template_to_dict(store.revise(body.get("id"), body.get("base_revision"), body.get("definition")))
     if operation == "apply":
         return apply_template(store.read(body.get("id"), body.get("revision")), body.get("spec"))
+    if operation == "match":
+        return match_template(body.get("template"), body.get("columns"), body.get("locked"))
     return bind_template(body.get("template"), body.get("spec"), body.get("bindings"))
