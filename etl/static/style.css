@@ -712,7 +712,6 @@ footer {
 #template-fields {
   max-height: 430px;
   overflow: auto;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   background: #fbfdfb;
   border: 1px solid #e8efe9;
@@ -876,6 +875,10 @@ footer {
   display: none;
 }
 
+/* No overscroll-behavior anywhere in this file, deliberately: every scroller
+   here is a list embedded in a page that scrolls. "contain" stopped the wheel
+   dead once the inner list bottomed out, stranding the reader mid-page. */
+
 /* BOUNDED WORK AREAS
    ------------------
    Height caps and internal scrolling for large schemas. */
@@ -972,7 +975,6 @@ header h1 {
   overflow: auto;
   scrollbar-gutter: stable;
   padding-right: 8px;
-  overscroll-behavior: contain;
 }
 #column-picker {
   padding: 12px;
@@ -1006,7 +1008,6 @@ header h1 {
 #runs {
   max-height: 360px;
   overflow: auto;
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 #discovery-datasets,
