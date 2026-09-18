@@ -610,6 +610,12 @@ footer {
   .fields > label {
     flex: 1;
   }
+  .template-field {
+    grid-template-columns: 1fr;
+  }
+  .template-field > * {
+    grid-column: 1;
+  }
   .run {
     flex-wrap: wrap;
   }
@@ -696,9 +702,49 @@ footer {
   margin: 14px 0;
   padding: 14px;
 }
+/* A fixed grid, not a wrapping flex row: the transform control is far taller
+   and wider than a plain input, and wrapping let it overlap its neighbours. */
+.template-field {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px 18px;
+  align-items: start;
+}
+.template-field > .transforms {
+  grid-column: 1 / 3;
+}
+.template-field > .checks {
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: start;
+  padding-top: 22px;
+}
+.template-field > .remove {
+  grid-column: 1 / -1;
+  justify-self: end;
+  margin: 0;
+}
+.template-field .check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.template-field .transform-control {
+  min-width: 0;
+  max-width: 440px;
+}
+.template-field .transform-control button {
+  margin: 0;
+}
+.template-field .hint {
+  margin: 0;
+}
 .template-field input[type="checkbox"] {
   width: 18px;
   height: 18px;
+  flex: 0 0 18px;
 }
 .template-binding h3,
 .template-binding p {
