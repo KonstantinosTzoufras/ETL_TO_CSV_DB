@@ -170,7 +170,7 @@ SELECT   ─┘    1 transforms                            └─ rejected.csv
 
 ---
 
-## 6. Η επιφάνεια HTTP — 13 endpoints
+## 6. Η επιφάνεια HTTP — 14 endpoints
 
 Όλα POST με token, όλα loopback.
 
@@ -186,6 +186,7 @@ SELECT   ─┘    1 transforms                            └─ rejected.csv
 | `/api/query/connections` · `/api/query/validate` | εγκεκριμένες συνδέσεις, έλεγχος SQL |
 | `/api/ordered/preview` | preview ενός βήματος |
 | `/api/templates/…` | `list`, `read`, `create`, `revision`, `apply`, `bind`, `match` |
+| `/api/profiles/…` | `list`, `read`, `save`, `delete`, `reconcile` |
 
 ---
 
@@ -210,7 +211,7 @@ SELECT   ─┘    1 transforms                            └─ rejected.csv
 ```
 C:\etltool\
 ├── data\
-│   ├── etl.sqlite3              δύο πίνακες: pipelines, runs
+│   ├── etl.sqlite3              pipelines, runs, binding_profiles
 │   ├── templates\<id>\<rev>.json   ένα αρχείο ανά revision, ποτέ overwrite
 │   └── runs\<run_id>\           valid.csv | .xlsx  +  rejected.csv
 ├── examples\                    το demo και το templates_demo
@@ -227,7 +228,7 @@ C:\etltool\
 
 ## 9. Έλεγχοι
 
-**276 Python tests** σε 20 αρχεία:
+**323 Python tests** σε 22 αρχεία:
 
 | | |
 |---|---|
@@ -236,10 +237,11 @@ C:\etltool\
 | `test_models.py` · `test_exporters.py` | 39 — αμεταβλητότητα και όρια εξόδου |
 | `test_ordered.py` · `test_legacy_semantics.py` | 36 |
 | `test_desired_v2_semantics.py` | 16 — τι ακριβώς αλλάζει το v2 |
-| `test_templates.py` | 15 |
+| `test_templates.py` · `test_template_matching.py` | 34 |
+| `test_binding_profiles.py` | 26 |
 | τα υπόλοιπα | 81 |
 
-**12 browser tests** (Playwright, `.cjs`) που χτυπάνε δύο fixture servers σε
+**13 browser tests** (Playwright, `.cjs`) που χτυπάνε δύο fixture servers σε
 `8768` και `8769`.
 
 > **Προσοχή στα Windows:** λόγω `SO_REUSEADDR`, δύο servers μπορούν να δεσμεύσουν
@@ -273,16 +275,28 @@ transforms, επικύρωση, μετατροπή τύπων, διαγνωστ�
 
 ---
 
-## 11. Τι είναι σε εξέλιξη
+## 11. Επαναχρησιμοποίηση δεσίματος
 
-**Matching των templates** — μισοτελειωμένο, δηλωμένο. Υπάρχουν ήδη:
-`propose_bindings`, `match_template`, το `match` endpoint, τα νέα κείμενα του UI
-και οι handlers.
+Το πρόβλημα που λύθηκε τελευταίο: το `customer_code` απέναντι σε `KOD_PEL`,
+`CUSTNO`, `IDCLIENT`. Κανένας κανόνας ονομάτων δεν το φτάνει — άρα αποθηκεύεται η
+**κρίση**, όχι ο κανόνας.
 
-Λείπουν: **τα τεστ** (1–15 Python, 21–25 browser) και το CSS των καταστάσεων.
-Μέχρι να γραφτούν, δεν έχει αποδειχθεί τίποτα.
+| | Κρατάει | Ανά πηγή; |
+|---|---|---|
+| **Template** | ονόματα, τύποι, transforms, κανόνες | **όχι**, εξ ορισμού |
+| **Binding profile** | target → στήλη / σταθερά / lookup | **ναι**, αυτός είναι ο σκοπός |
+| **Pipeline** | το εκτελέσιμο | ναι, συγκεκριμένο |
 
-Σχέδιο: [TEMPLATE_MATCHING_PLAN.md](TEMPLATE_MATCHING_PLAN.md).
+Ένα profile είναι το `bindings` array που το `bind_template` **ήδη δέχεται**, συν
+ταυτότητα πηγής και τα μεταδεδομένα για απόκλιση. Όλο το καινούργιο κάθεται
+**πριν** το `bind_template` — η μηχανή δεν άλλαξε.
+
+Τα pipelines παίρνουν προαιρετική **σφραγίδα προέλευσης** (template, revision,
+profile) αποθηκευμένη **δίπλα** στον ορισμό, ποτέ μέσα του, ώστε τίποτα να μην
+μπορεί να τη διαβάσει και να δράσει.
+
+Σχέδια: [BINDING_PROFILES_DESIGN.md](BINDING_PROFILES_DESIGN.md) ·
+[TEMPLATE_MATCHING_PLAN.md](TEMPLATE_MATCHING_PLAN.md).
 
 ---
 
@@ -292,7 +306,8 @@ transforms, επικύρωση, μετατροπή τύπων, διαγνωστ�
 |---|---|
 | `README.md` | εγκατάσταση και πρώτη εκτέλεση |
 | `USER_GUIDE_EL.md` | οδηγός χρήσης |
-| `TEMPLATES_EXPLAINED_EL.md` | τα templates σε απλά λόγια, με παραδείγματα που τρέχουν |
+| `TEMPLATES_EXPLAINED_EL.md` | τα templates και τα saved bindings σε απλά λόγια |
+| `BINDING_PROFILES_DESIGN.md` | ο σχεδιασμός των saved bindings |
 | `REUSABLE_MAPPING_TEMPLATES.md` | η τεχνική προδιαγραφή των templates |
 | `ARCHITECTURE_STAGES_1_2.md` … `_5.md` | η αρχιτεκτονική ανά στάδιο |
 | `DEVELOPER_NOTE_DATA_FLOW.md` | η ροή δεδομένων για προγραμματιστή |

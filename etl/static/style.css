@@ -770,6 +770,28 @@ footer {
 .template-binding p {
   overflow-wrap: anywhere;
 }
+/* A target still needing a decision is marked on the row itself, so a long
+   review list can be scanned without reading every line of state text. */
+.template-binding.binding-open {
+  border-left: 3px solid #d8a13a;
+  background: #fffdf7;
+}
+.template-binding [data-binding-state] {
+  font-size: 11px;
+  color: #65766c;
+  margin: 0 0 10px;
+}
+.profile-bar {
+  align-items: flex-end;
+  margin: 12px 0 4px;
+}
+.profile-bar button {
+  margin: 0;
+}
+#profile-summary,
+#template-match-summary {
+  margin: 4px 0 12px;
+}
 #mapping-templates button {
   margin: 8px 4px 8px 0;
 }

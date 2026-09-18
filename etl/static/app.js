@@ -25,7 +25,7 @@ async function action(fn) {
   const buttons=[...document.querySelectorAll("button")].map(button=>[button,button.disabled]);
   buttons.forEach(([button])=>button.disabled=true);
   try { await fn(); } catch(error) { notify(error.message,true); }
-  finally { busy=false; buttons.forEach(([button,disabled])=>button.disabled=disabled); window.EditorControls?.refreshBulk(); }
+  finally { busy=false; buttons.forEach(([button,disabled])=>button.disabled=disabled); window.EditorControls?.refreshBulk(); window.TemplateState?.refresh(); }
 }
 function sourceFields() {
   const sql=$("source-kind").value==="sqlserver", query=$("source-kind").value==="sqlserver_query";
