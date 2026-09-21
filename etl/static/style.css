@@ -799,6 +799,32 @@ footer {
   margin-top: 12px;
 }
 
+/* QUERY EDITOR RULES
+   ------------------
+   The accepted SQL subset, stated where the SQL is written. */
+#query-rules {
+  margin: 12px 0;
+}
+#query-rules summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f6b52;
+  cursor: pointer;
+}
+.rules {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+.rules li {
+  margin-bottom: 7px;
+}
+.rules code {
+  background: #edf5ef;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+}
+
 /* ORDERED QUERY EXPORTS
    ---------------------
    Step chips and the multi-step run history card. */

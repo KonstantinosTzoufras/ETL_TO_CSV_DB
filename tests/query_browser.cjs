@@ -49,7 +49,7 @@ const assert=require("node:assert/strict");
   await page.locator('#notice').filter({hasText:'Preview complete'}).waitFor();
   assert.match(await page.locator('#counts').innerText(),/25/);
   await page.getByRole('button',{name:'Save pipeline',exact:true}).click();
-  await page.locator('#notice').filter({hasText:'Pipeline saved'}).waitFor();
+  await page.locator('#notice').filter({hasText:/Pipeline (saved|updated)/}).waitFor();
   await page.locator('#run').click();
   await page.waitForFunction(()=>document.querySelector('#runs').textContent.includes('completed'));
   await page.locator('#query-sql').fill('SELECT 1 INTO dbo.bad');

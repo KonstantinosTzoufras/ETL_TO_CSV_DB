@@ -51,21 +51,28 @@ const count=(page,name)=>page.evaluate(n=>saved.filter(item=>item.name===n).leng
     assert.match(asked[0],/already saved/);
     assert.equal(await count(page,NAME),before,"answering OK updates instead of duplicating");
 
-    // Cancel is still allowed: a deliberate second copy, never a silent one.
+    // Cancelling or dismissing writes nothing at all: no branch of a dialog may
+    // be the one that creates a duplicate.
     await page.reload();
     await page.waitForFunction(()=>saved.length>0);
     await page.locator("#name").fill(NAME);
     asked=[];answer=false;
     await page.getByRole("button",{name:"Save pipeline",exact:true}).click();
-    await page.getByRole("status").filter({hasText:"saved as a new entry"}).waitFor();
+    await page.getByRole("status").filter({hasText:"Nothing was saved"}).waitFor();
     assert.equal(asked.length,1);
-    assert.equal(await count(page,NAME),before+1,"a second copy only on an explicit choice");
+    assert.equal(await count(page,NAME),before,"dismissing must not create anything");
 
-    // Two rows share a name, so the sidebar has to distinguish them.
+    // A separate copy is made by naming it, which cannot happen by accident.
+    await page.locator("#name").fill(NAME+" (copy)");
+    await page.getByRole("button",{name:"Save pipeline",exact:true}).click();
+    await page.getByRole("status").filter({hasText:"saved as a new entry"}).waitFor();
+    assert.equal(await count(page,NAME+" (copy)"),1);
+
+    // Saved rows carry a date, so same-named survivors can be told apart.
     const entries=await page.locator("#pipelines .pipeline small").allInnerTexts();
     assert.ok(entries.every(text=>/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(text)),"each saved row shows when it was saved");
 
     assert.deepEqual(errors,[]);
-    console.log("Save identity passed: hint tracks the link, reload asks before duplicating, update in place, deliberate copy, dated sidebar.");
+    console.log("Save identity passed: hint tracks the link, reload asks before duplicating, update in place, dismissal writes nothing, renamed copy, dated sidebar.");
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

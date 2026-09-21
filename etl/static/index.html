@@ -32,7 +32,17 @@
     <div id="query-editor" hidden>
       <p class="hint">One parameterized SELECT on an approved read-only connection. Joins and derived columns are explicit SQL. No automatic mapping.</p>
       <label>Approved query connection<select id="query-connection" aria-label="Approved query connection"><option value="">Select an approved connection</option></select></label><button id="query-connections">Refresh approved connections</button>
-      <label>SELECT query<textarea id="query-sql" aria-label="SELECT query" rows="7" spellcheck="false" placeholder="SELECT Code FROM dbo.Products WHERE Active = ?"></textarea></label>
+      <details id="query-rules"><summary>What this editor accepts</summary>
+        <ul class="hint rules">
+          <li><b>Name the schema every time</b> — <code>dbo.brands</code>, never <code>brands</code> on its own. Without it the same text would mean a different table for a different database user.</li>
+          <li><b><code>SELECT *</code> is fine.</b> So are joins, <code>WHERE</code>, <code>GROUP BY</code>, <code>CAST</code>, <code>CONVERT</code> and <code>TRIM</code>.</li>
+          <li><b>One statement only</b>, with no trailing semicolon or <code>GO</code>.</li>
+          <li><b>Reading only.</b> <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>DROP</code>, <code>INTO</code>, <code>EXEC</code> and temporary tables are refused.</li>
+          <li><b>Values go in as <code>?</code></b>, never typed into the text, and are listed below in order.</li>
+          <li>Only tables your administrator approved for this connection are reachable.</li>
+        </ul>
+      </details>
+      <label>SELECT query<textarea id="query-sql" aria-label="SELECT query" rows="7" spellcheck="false" placeholder="SELECT * FROM dbo.brands WHERE Active = ?"></textarea></label>
       <label>Ordered typed parameters (JSON)<textarea id="query-parameters" aria-label="Ordered typed parameters (JSON)" rows="5" spellcheck="false">[]</textarea></label>
       <p class="hint">Example: [{"name":"active","type":"bool","value":true}]. Parameters bind to ? in order. Use strings for decimals and large integers. NULL is null; empty text is "". Values are stored in pipeline/run snapshots.</p>
       <label>Query timeout (seconds, 1-300)<input id="query-timeout" aria-label="Query timeout (seconds, 1-300)" type="number" min="1" max="300" value="60"></label>

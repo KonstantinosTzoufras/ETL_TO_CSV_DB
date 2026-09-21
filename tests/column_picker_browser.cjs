@@ -53,7 +53,7 @@ const assert=require('node:assert/strict');
     assert.match(await page.locator('#counts').innerText(),/5[\s\S]*5[\s\S]*0/);
     // Reopening a saved pipeline must still offer source choices on demand.
     await page.locator('#save').click();
-    await page.locator('#notice').filter({hasText:'Pipeline saved'}).waitFor();
+    await page.locator('#notice').filter({hasText:/Pipeline (saved|updated)/}).waitFor();
     await page.locator('#pipelines [data-pipeline]').first().click();
     assert.equal(await page.locator('#column-picker').isVisible(),false);
     await page.locator('#columns tr').first().locator('.source-select + .select2 .select2-selection').click();

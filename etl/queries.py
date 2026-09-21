@@ -111,8 +111,11 @@ def validate_sql(sql):
                 check(style is None or type(style) is exp.Literal and not style.is_string and style.this.isdigit(),
                       "QUERY_UNSUPPORTED", "CONVERT style must be a nonnegative integer literal")
             if type(node) is exp.Table:
+                # Say what to type: an unqualified name is the commonest mistake
+                # here, and "schema-qualified" does not tell anyone what to fix.
                 check(type(node.this) is exp.Identifier and type(node.args.get("db")) is exp.Identifier,
-                      "QUERY_UNSUPPORTED", "Use local schema-qualified tables/views only")
+                      "QUERY_UNSUPPORTED",
+                      f"Name the schema as well, for example dbo.{node.name or 'table'} rather than {node.name or 'table'}")
                 tables.add((node.db, node.name))
             if type(node) is exp.Join:
                 check(node.args.get("side", "") in ("", "LEFT", "RIGHT", "FULL") and node.args.get("kind", "") in ("", "INNER", "OUTER", "CROSS"),

@@ -417,3 +417,18 @@ class SchemaWideApprovalTests(unittest.TestCase):
             # The approved timeout still binds.
             with self.assertRaises(QueryError):
                 authorize("ETL_SQL_MAIN", self.query("SELECT Code FROM dbo.BRANDS", timeout=300))
+
+
+class GuidanceTests(unittest.TestCase):
+    """An unqualified table name is the commonest mistake; the message must fix it."""
+
+    def test_the_error_names_the_table_and_shows_the_correction(self):
+        with self.assertRaises(QueryError) as caught:
+            validate_sql("SELECT * FROM brands")
+        message = str(caught.exception)
+        self.assertIn("dbo.brands", message)
+        self.assertIn("brands", message)
+        self.assertNotIn("schema-qualified", message, "jargon does not tell anyone what to type")
+
+    def test_select_star_is_not_what_is_being_refused(self):
+        validate_sql("SELECT * FROM dbo.brands")

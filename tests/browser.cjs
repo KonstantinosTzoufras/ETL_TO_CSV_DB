@@ -19,8 +19,11 @@ const fs = require("node:fs/promises");
     assert.match(await page.locator("#counts").innerText(),/5[\s\S]*3[\s\S]*2/);
     for(const summary of await page.locator("#preview-table .diagnostic-row > summary").all())await summary.click();
     assert.match(await page.locator("#preview-table").innerText(),/required value is missing/);
+    // Its own name, so this smoke test never meets the duplicate-name guard;
+    // that guard has its own test in save_identity_browser.cjs.
+    await page.locator("#name").fill("Smoke "+Date.now());
     await page.getByRole("button",{name:"Save pipeline",exact:true}).click();
-    await page.getByRole("status").filter({hasText:"Pipeline saved"}).waitFor();
+    await page.getByRole("status").filter({hasText:/Pipeline (saved|updated)/}).waitFor();
     await page.getByRole("button",{name:"Run & export →",exact:true}).click();
     await page.locator("#runs .completed").first().waitFor();
     const downloadPromise=page.waitForEvent("download");

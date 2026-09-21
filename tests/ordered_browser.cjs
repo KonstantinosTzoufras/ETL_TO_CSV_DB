@@ -46,7 +46,7 @@ const assert=require('node:assert/strict');
   await page.locator('#notice').filter({hasText:'Preview complete'}).waitFor();
   assert.match(await page.locator('#counts').innerText(),/25/);
   assert.equal(await page.locator('.ordered-run').count(),0);
-  await page.locator('#save').click();await page.locator('#notice').filter({hasText:'Pipeline saved'}).waitFor();
+  await page.locator('#save').click();await page.locator('#notice').filter({hasText:/Pipeline (saved|updated)/}).waitFor();
   await page.locator('#run').click();
   await page.waitForFunction(()=>document.querySelector('.ordered-run')?.textContent.includes('skipped'));
   let card=page.locator('.ordered-run');assert.match(await card.innerText(),/failed/);

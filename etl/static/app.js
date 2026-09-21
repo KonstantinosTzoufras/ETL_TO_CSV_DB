@@ -160,15 +160,18 @@ $("inspect").onclick=()=>action(async()=>{
 });
 // A reload forgets which saved pipeline is on screen, so saving again would
 // quietly create a twin under the same name. Ask instead of guessing.
+// Dismissing a dialog must never be the branch that writes something. Escape
+// and Cancel both mean "do nothing"; a same-name copy needs a new name instead.
+const ABORT=Symbol("abort");
 function saveTarget(spec){
   if(pipelineId)return pipelineId;
   const twins=saved.filter(item=>item.name===spec.name);
   if(!twins.length)return null;
-  const newest=twins[0];
   return confirm(`"${spec.name}" is already saved${twins.length>1?` (${twins.length} copies)`:""}.
 
-OK — update the existing one
-Cancel — keep it and save a separate copy`)?newest.id:null;
+OK — update it
+Cancel — save nothing, so you can give this one another name`)
+    ?twins[0].id:ABORT;
 }
 function describeSave(){
   const current=saved.find(item=>item.id===pipelineId);
@@ -178,6 +181,7 @@ function describeSave(){
 }
 $("save").onclick=()=>action(async()=>{
   const spec=workingDefinition(), target=saveTarget(spec);
+  if(target===ABORT){notify(`Nothing was saved. Rename this pipeline to keep it beside "${spec.name}".`);return;}
   const result=await api("/api/pipelines",{id:target,spec,provenance:typeof pipelineProvenance!=="undefined"?pipelineProvenance:undefined});
   pipelineId=result.id;dirty=false;await refreshSaved();
   notify(target?"Pipeline updated.":"Pipeline saved as a new entry. You can load it from the sidebar.");
