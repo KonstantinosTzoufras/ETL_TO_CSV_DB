@@ -98,12 +98,44 @@ function openDefinition(spec,id=null) {
   if(spec.kind==="ordered_query_export"){openOrdered(spec,id);return;}
   if(typeof clearOrdered==="function")clearOrdered();
   if(typeof clearTemplateDraft==="function")clearTemplateDraft();
-  definition=structuredClone(spec); pipelineId=id; dirty=false; render(); renderSaved(); describeSave();
+  // A stamp is only valid for the save right after generating mappings from a
+  // template; switching to an unrelated pipeline must not carry it along.
+  if(typeof pipelineProvenance!=="undefined")pipelineProvenance=null;
+  definition=structuredClone(spec); pipelineId=id; dirty=false; render(); renderSaved(); describeSave(); renderProvenance(id);
 }
 function renderSaved() {
   $("pipelines").innerHTML=saved.length?saved.map(p=>`<div class="saved-pipeline"><button class="pipeline ${p.id===pipelineId?"active":""}" data-pipeline="${esc(p.id)}">${esc(p.name)}<small>${esc(p.spec.kind==="ordered_query_export"?"ORDERED QUERIES":p.spec.source.kind.toUpperCase())} → ${esc(p.spec.kind==="ordered_query_export"?`${p.spec.steps.length} FILES`:p.spec.destination.kind.toUpperCase())} · ${esc(String(p.updated).slice(0,16).replace("T"," "))}</small></button><button class="delete-pipeline" data-delete-pipeline="${esc(p.id)}" aria-label="Delete pipeline ${esc(p.name)}">Delete</button></div>`).join(""):'<p class="muted">Save your first pipeline to reuse it here.</p>';
 }
-async function refreshSaved() { saved=await api("/api/pipelines");renderSaved();describeSave(); }
+async function refreshSaved() { saved=await api("/api/pipelines");renderSaved();describeSave();renderProvenance(pipelineId); }
+// Informational only: names how a saved pipeline was originally produced.
+// Never used to resolve, change or re-generate anything - the pipeline is
+// already a complete, independent definition regardless of what this says.
+async function renderProvenance(id){
+  const note=$("provenance-note");
+  note.dataset.forId=id??"";
+  const entry=saved.find(p=>p.id===id);
+  const provenance=entry&&entry.provenance;
+  if(!provenance){note.hidden=true;note.textContent="";return;}
+  note.hidden=false;note.textContent="Checking how this pipeline was generated…";
+  try{
+    const template=await templateApi("read",{id:provenance.template_id,revision:provenance.template_revision});
+    if(note.dataset.forId!==(id??""))return;  // the user moved on while this was in flight
+    let text=`Generated from template "${template.name}", revision ${provenance.template_revision}`;
+    if(provenance.binding_profile_id){
+      try{
+        const profile=await profileApi("read",{id:provenance.binding_profile_id});
+        text+=`, using the saved binding "${profile.name}"`;
+        if(profile.updated!==provenance.binding_profile_updated)text+=" (that binding has changed since)";
+      }catch{
+        text+=", using a saved binding that no longer exists";
+      }
+    }
+    text+=". This pipeline is independent of both and is unaffected by later changes to either.";
+    if(note.dataset.forId===(id??""))note.textContent=text;
+  }catch{
+    if(note.dataset.forId===(id??""))note.textContent="Generated from a template that could not be read (it may have been removed).";
+  }
+}
 function preview(report) {
   $("results").hidden=false;
   $("counts").innerHTML=`<div class="count"><b>${report.processed}</b>Sampled records</div><div class="count good"><b>${report.valid}</b>Valid</div><div class="count bad"><b>${report.invalid}</b>Rejected</div>`;

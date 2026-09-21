@@ -22,6 +22,7 @@
     <p id="ordered-output" class="hint"></p>
   </section>
   <section class="card titlebar"><label class="grow">Pipeline name<input id="name" maxlength="120" placeholder="Give your pipeline a name"></label></section>
+  <p id="provenance-note" class="hint" role="status" hidden></p>
   <nav class="flow" aria-label="Editor sections"><button data-section-link="source-card">01 Source</button><button data-section-link="mapping-card">02 Map &amp; validate</button><button data-section-link="export-card">03 Export</button><button data-section-link="results-area">04 Preview &amp; history</button></nav>
   <section class="card bounded-card" id="source-card"><div class="section-head"><div><h2><span class="step">01</span> Data source</h2><p class="muted">Choose where your records come from.</p></div><button id="inspect">Read source columns</button></div><div class="section-body">
     <div class="fields"><label>Source type<select id="source-kind"><option value="csv">CSV file</option><option value="sqlserver">SQL Server</option><option value="sqlserver_query">SQL Query (advanced)</option></select></label>
