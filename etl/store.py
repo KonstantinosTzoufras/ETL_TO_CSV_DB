@@ -35,6 +35,9 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS binding_profiles_template
                     ON binding_profiles(template_id);
+                CREATE TABLE IF NOT EXISTS pipeline_exports (
+                    pipeline_id TEXT PRIMARY KEY, table_name TEXT UNIQUE NOT NULL, updated TEXT NOT NULL
+                );
             """)
         # Provenance is informational only and is deliberately kept out of the
         # pipeline spec, so that nothing downstream can read it and act on it.
@@ -56,6 +59,11 @@ class Store:
         with self.connect() as db:
             return [dict(row) | {"spec": json.loads(row["spec"]), "provenance": json.loads(row["provenance"]) if row["provenance"] else None}
                     for row in db.execute("SELECT * FROM pipelines ORDER BY updated DESC")]
+
+    def pipeline(self, pipeline_id):
+        with self.connect() as db:
+            row = db.execute("SELECT id FROM pipelines WHERE id=?", (pipeline_id,)).fetchone()
+        return row["id"] if row else None
 
     def save(self, spec, pipeline_id=None, provenance=None):
         validate(spec)
@@ -112,6 +120,30 @@ class Store:
         with self.connect() as db:
             if db.execute("DELETE FROM binding_profiles WHERE id=?", (profile_id,)).rowcount != 1:
                 raise ConfigError("Binding profile not found")
+
+    def claim_export_table(self, pipeline_id, desired_name):
+        """The table name a pipeline's database export writes to.
+
+        The first successful call for a pipeline_id claims desired_name and
+        keeps it permanently: renaming the pipeline afterward does not rename
+        the table, so nothing that already points at it breaks quietly. A
+        desired_name already claimed by a DIFFERENT pipeline is refused
+        outright, before any DDL runs - two pipelines never share one table.
+        """
+        with self.connect() as db:
+            row = db.execute("SELECT table_name FROM pipeline_exports WHERE pipeline_id=?", (pipeline_id,)).fetchone()
+            if row is not None:
+                return row["table_name"]
+            clash = db.execute("SELECT pipeline_id FROM pipeline_exports WHERE table_name=?", (desired_name,)).fetchone()
+            if clash is not None:
+                raise ConfigError(f"Table name '{desired_name}' is already used by another pipeline; rename this pipeline and run again")
+            db.execute("INSERT INTO pipeline_exports(pipeline_id,table_name,updated) VALUES (?,?,?)", (pipeline_id, desired_name, now()))
+            return desired_name
+
+    def export_table_for(self, pipeline_id):
+        with self.connect() as db:
+            row = db.execute("SELECT table_name FROM pipeline_exports WHERE pipeline_id=?", (pipeline_id,)).fetchone()
+        return row["table_name"] if row else None
 
     def create_run(self, spec):
         validate(spec)

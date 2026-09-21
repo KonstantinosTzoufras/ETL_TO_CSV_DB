@@ -47,6 +47,9 @@ def from_dict(spec):
         # download_path below names a step's file as f'{step_id}.{extension}', so
         # a per-group subdirectory has nowhere to be served from yet.
         require(not isinstance(raw.get('destination'),dict) or 'split_by' not in raw['destination'], 'split_by is not supported for ordered query steps')
+        # A database export claims a table by the pipeline's own stable id; a
+        # step has no such identity of its own to claim one with.
+        require(not isinstance(raw.get('destination'),dict) or raw['destination'].get('kind')!='sqlserver', 'Database export is not supported for ordered query steps')
         single=pipeline_from_dict(step_spec(spec.get('connection_env'),raw))
         for column in raw['columns']:
             lookup=column.get('lookup',{}).get('source')

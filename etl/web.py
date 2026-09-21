@@ -24,6 +24,7 @@ from .sources import inspect_source
 from .spec import ConfigError, require, validate, MAX_OUTPUT_COLUMNS
 from .store import Store
 from .binding_profiles import dispatch as profile_request, provenance
+from .db_export import export_policies
 from .templates import TemplateStore, dispatch as template_request
 
 ASSETS = Path(__file__).parent / "static"
@@ -49,17 +50,23 @@ class Application:
         with self.store.connect() as db:
             db.execute("UPDATE runs SET status='interrupted', error='The application stopped before this run finished.' WHERE status IN ('queued','running')")
 
-    def submit(self, spec):
+    def submit(self, spec, pipeline_id=None):
         validate_definition(spec)
         if is_ordered(spec):
             model = ordered_from_dict(spec)
             preflight(model, self.root, self.data / "runs")
             spec = ordered_to_dict(model)  # Own the queued snapshot, not caller containers.
+        elif spec.get("destination", {}).get("kind") == "sqlserver":
+            # The client names which saved pipeline this is; verified against
+            # the store rather than trusted, since it decides which table gets
+            # claimed and, on every later run, silently overwritten.
+            require(pipeline_id is not None and self.store.pipeline(pipeline_id) is not None,
+                    "Save this pipeline before running a database export, so its table can be found again next time")
         require(self.slots.acquire(blocking=False), "Eight runs are already queued or running; wait for one to finish")
         run_id = None
         try:
             run_id = self.store.create_run(spec)
-            self.executor.submit(self.work, run_id, spec)
+            self.executor.submit(self.work, run_id, spec, pipeline_id)
             return run_id
         except Exception:
             self.slots.release()
@@ -80,14 +87,15 @@ class Application:
         else:
             self.store.update_run(run_id, "failed", error=message)
 
-    def work(self, run_id, spec):
+    def work(self, run_id, spec, pipeline_id=None):
         try:
             if is_ordered(spec):
                 coordinate(spec, self.root, self.data / "runs", run_id,
                            persist=lambda report: self.store.update_run(run_id, report["status"], report, report.get("error")))
                 return
             self.store.update_run(run_id, "running")
-            report = execute(spec, self.root, self.data / "runs", progress=lambda counts: self.store.update_run(run_id, "running", counts))
+            report = execute(spec, self.root, self.data / "runs", progress=lambda counts: self.store.update_run(run_id, "running", counts),
+                             pipeline_id=pipeline_id, claim_table=self.store.claim_export_table)
             self.store.update_run(run_id, "completed", report)
         except (ConfigError, OSError, ValueError, csv.Error) as error:
             self.fail(run_id, spec, str(error))
@@ -201,6 +209,8 @@ def handler_for(app):
                 path = urlsplit(self.path).path
                 if path == "/api/query/connections":
                     self.respond(200, {"connections": sorted(connection_policies())})
+                elif path == "/api/export/connections":
+                    self.respond(200, {"connections": sorted(export_policies())})
                 elif path == "/api/query/validate":
                     query_from_dict(body.get("query"))
                     self.respond(200, {"ok": True})
@@ -252,7 +262,9 @@ def handler_for(app):
                     # nothing downstream can read it, so nothing can act on it.
                     self.respond(200, {"id": app.store.save(body.get("spec"), pipeline_id, provenance(body.get("provenance")))})
                 elif path == "/api/runs":
-                    self.respond(202, {"id": app.submit(body.get("spec"))})
+                    pipeline_id = body.get("pipeline_id")
+                    require(pipeline_id is None or isinstance(pipeline_id, str) and len(pipeline_id) <= 64, "Invalid pipeline ID")
+                    self.respond(202, {"id": app.submit(body.get("spec"), pipeline_id)})
                 else:
                     self.respond(404, {"error": "Not found"})
             except (DiscoveryError, QueryError) as error:

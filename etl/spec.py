@@ -55,11 +55,20 @@ TRANSFORMS = {"trim", "upper", "lower", "empty_to_null"}
 
 def destination_spec(destination, version):
     require(type(version) is int and version in (1, 2), "Pipeline version must be 1 or 2")
+    require(isinstance(destination, dict), "destination must be an object")
+    require(destination.get("kind") in {"csv", "xlsx", "sqlserver"}, "Destination must be csv, xlsx or sqlserver")
+    if destination["kind"] == "sqlserver":
+        # A separate, deliberately small shape: no delimiter/encoding/null_value
+        # concepts apply to a table, and split_by is refused by omission - one
+        # pipeline claims one table, not several under a moving name.
+        keys(destination, {"kind", "connection_env"}, "destination")
+        require(isinstance(destination.get("connection_env"), str) and re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", destination["connection_env"]),
+                "Connection variable must start with ETL_SQL_")
+        return
     allowed = {"kind", "delimiter", "split_by"}
     if version == 2:
         allowed |= {"encoding", "null_value", "formula_policy"}
     keys(destination, allowed, "destination")
-    require(destination.get("kind") in {"csv", "xlsx"}, "Destination must be csv or xlsx")
     delimiter = destination.get("delimiter", ";")
     require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single export delimiter")
     require(destination.get("encoding", "utf-8-sig") in ("utf-8", "utf-8-sig"), "Export encoding must be utf-8 or utf-8-sig")

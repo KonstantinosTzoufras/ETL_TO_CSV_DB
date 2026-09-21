@@ -51,11 +51,31 @@ function read(options={}) {
     if(field("max_length").value!=="") column.max_length=Number(field("max_length").value);
     return column;
   });
-  const destination={...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value};
-  if($("split-by").value)destination.split_by=$("split-by").value;else delete destination.split_by;
+  // A table has no delimiter/split concept, and split_by is refused outright
+  // for it server-side - build it as its own small shape, not a CSV/XLSX one
+  // with fields quietly left over from whatever format was picked before.
+  const destination=$("format").value==="sqlserver"
+    ?{kind:"sqlserver",connection_env:$("export-connection").value}
+    :(()=>{const d={...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value};
+            if($("split-by").value)d.split_by=$("split-by").value;else delete d.split_by;return d;})();
   definition={version:definition.version,name:$("name").value,source:source(),columns,destination};
   return structuredClone(definition);
 }
+function toggleExportFields(){
+  const isDb=$("format").value==="sqlserver";
+  document.querySelectorAll("#export-card .file-format-only").forEach(el=>el.hidden=isDb);
+  $("export-connection-field").hidden=!isDb;
+  $("export-connections").hidden=!isDb;
+  $("export-table-hint").hidden=!isDb;
+}
+$("format").onchange=()=>{toggleExportFields();dirty=true;};
+$("export-connections").onclick=()=>action(async()=>{
+  const result=await api("/api/export/connections",{});
+  const selected=$("export-connection").value;
+  $("export-connection").innerHTML='<option value="">Select an approved connection</option>'+result.connections.map(name=>`<option>${esc(name)}</option>`).join("");
+  if(selected)$("export-connection").value=selected;
+  notify(result.connections.length?"Approved export connections loaded.":"No database connections are approved for export. Set ETL_EXPORT_CONNECTIONS and restart.");
+});
 function renderColumns() {
   window.EditorControls?.destroyMappings();
   closeBindingPicker();
@@ -88,6 +108,12 @@ function render() {
   $("source-kind").value=s.kind; $("source-path").value=s.path||""; setDelimiter("source-delimiter",s.delimiter||";");
   if(s.encoding && ![...$("encoding").options].some(o=>o.value===s.encoding))$("encoding").add(new Option(s.encoding,s.encoding)); $("encoding").value=s.encoding||"utf-8-sig"; if(s.connection_env && ![...$("connection").options].some(o=>o.value===s.connection_env))$("connection").add(new Option(s.connection_env+" (saved reference; availability checked on use)",s.connection_env)); $("connection").value=s.connection_env||""; $("schema").value=s.schema||"dbo"; $("table").value=s.table||"";
   $("format").value=definition.destination.kind; setDelimiter("output-delimiter",definition.destination.delimiter||";");
+  if(definition.destination.kind==="sqlserver"){
+    const wanted=definition.destination.connection_env;
+    if(wanted && ![...$("export-connection").options].some(o=>o.value===wanted))$("export-connection").add(new Option(wanted+" (not yet refreshed)",wanted));
+    $("export-connection").value=wanted||"";
+  }
+  toggleExportFields();
   $("processing-note").textContent=definition.version===2?"Version 2: NULL and empty string are distinct. Transforms run in the order entered; empty_to_null is explicit.":"Version 1 (legacy): optional empty strings become NULL. Saved pipeline processing behavior is preserved.";
   if(typeof renderQuery==="function")renderQuery(s);
   sourceFields(); renderColumns(); $("split-by").value=definition.destination.split_by||""; window.EditorControls?.sync(); $("json").value=JSON.stringify(definition,null,2);
@@ -150,11 +176,18 @@ function preview(report) {
 }
 function downloadLinks(run){
   const kind=run.spec.destination.kind;
+  const rejectedLink=(run.report.files||["rejected.csv"]).includes("rejected.csv")?`<a href="/download/${run.id}/rejected.csv">Rejected rows</a>`:"";
+  if(kind==="sqlserver"){
+    const table=run.report.table;
+    // A run stored before the report carried this can no longer say where its
+    // rows went; say so rather than guess.
+    return (table?`<span>Written to ${esc(table.schema)}.${esc(table.name)} (${table.rows.toLocaleString()} rows)</span>`
+                 :`<span>Written to a database table.</span>`)+rejectedLink;
+  }
   // Runs saved before split export existed have no report.files; keep their
   // exact former behaviour rather than guessing at names that may not exist.
   const files=run.report.files||[`valid.${kind}`,"rejected.csv"];
   const valid=files.filter(f=>f!=="rejected.csv");
-  const rejectedLink=files.includes("rejected.csv")?`<a href="/download/${run.id}/rejected.csv">Rejected rows</a>`:"";
   if(!valid.length)return rejectedLink;  // every row was rejected; no group was ever created
   const anchor=f=>{
     const group=f.includes("/")?f.split("/")[0]:null;
@@ -242,7 +275,13 @@ $("save").onclick=()=>action(async()=>{
   notify(target?"Pipeline updated.":"Pipeline saved as a new entry. You can load it from the sidebar.");
 });
 $("preview").onclick=()=>action(async()=>{const report=typeof orderedDraft!=="undefined" && orderedDraft?await api("/api/ordered/preview",{spec:workingDefinition(),step_id:orderedDraft.steps[orderedIndex].id,diagnostics:true}):await api("/api/preview",{spec:read(),diagnostics:true});preview(report);notify("Preview complete. No export files were created.");});
-$("run").onclick=()=>action(async()=>{await api("/api/runs",{spec:workingDefinition()});notify("Export started. Follow its progress in Run history.");await refreshRuns();});
+$("run").onclick=()=>action(async()=>{
+  const spec=workingDefinition();
+  if(spec.destination&&spec.destination.kind==="sqlserver"&&!pipelineId)
+    throw new Error("Save this pipeline before running a database export, so its table can be found again next time.");
+  await api("/api/runs",{spec,pipeline_id:pipelineId});
+  notify("Export started. Follow its progress in Run history.");await refreshRuns();
+});
 $("refresh").onclick=()=>action(refreshRuns);
 $("advanced").ontoggle=()=>{if($("advanced").open){try{$("json").value=JSON.stringify(workingDefinition(),null,2);}catch(error){$("advanced").open=false;notify(error.message,true);}}};
 $("json").oninput=()=>{dirty=true;};

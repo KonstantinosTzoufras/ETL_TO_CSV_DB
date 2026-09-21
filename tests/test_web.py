@@ -1,9 +1,10 @@
 import json
+import os
 import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -165,6 +166,40 @@ class WebTests(unittest.TestCase):
             db.execute("UPDATE runs SET report=? WHERE id=?",(json.dumps(report),run_id))
         self.assertEqual(self.request("GET",f"/download/{run_id}/valid.csv")[0],200)
         self.assertEqual(self.request("GET",f"/download/{run_id}/rejected.csv")[0],200)
+
+    def test_database_export_requires_a_saved_pipeline_id(self):
+        self.spec["destination"]={"kind":"sqlserver","connection_env":"ETL_SQL_MAIN"}
+        status,body=self.request("POST","/api/runs",{"spec":self.spec})
+        self.assertEqual(status,400,body)
+        self.assertIn("Save this pipeline",json.loads(body)["error"])
+        # A pipeline_id that was never actually saved is rejected the same way.
+        status,body=self.request("POST","/api/runs",{"spec":self.spec,"pipeline_id":"nope"})
+        self.assertEqual(status,400,body)
+
+    def test_database_export_runs_end_to_end_and_claims_a_table(self):
+        cursor=MagicMock();connection=MagicMock();connection.cursor.return_value=cursor
+        module=MagicMock();module.Error=type("FakeError",(Exception,),{})
+        module.connect.return_value=connection
+        _,body=self.request("POST","/api/pipelines",{"spec":self.spec})
+        pipeline_id=json.loads(body)["id"]
+        self.spec["destination"]={"kind":"sqlserver","connection_env":"ETL_SQL_MAIN"}
+        policy=json.dumps({"ETL_SQL_MAIN":{"schema":"dbo","max_timeout_seconds":60}})
+        with patch.dict("sys.modules",{"pyodbc":module}), patch.dict(os.environ,{"ETL_EXPORT_CONNECTIONS":policy,"ETL_SQL_MAIN":"NEVER_PRINT_CREDENTIALS"}):
+            status,body=self.request("POST","/api/runs",{"spec":self.spec,"pipeline_id":pipeline_id})
+            self.assertEqual(status,202,body)
+            run=self.wait_run(json.loads(body)["id"])
+        self.assertEqual(run["status"],"completed",run.get("error"))
+        self.assertEqual(run["report"]["table"]["name"],"z0_customers_clean_export")
+        self.assertEqual(run["report"]["files"],["rejected.csv"])
+        # A download for the (nonexistent) valid file is refused; rejected.csv works.
+        self.assertEqual(self.request("GET",f"/download/{run['id']}/valid.csv")[0],404)
+        self.assertEqual(self.request("GET",f"/download/{run['id']}/rejected.csv")[0],200)
+
+    def test_export_connections_endpoint_lists_only_what_is_approved(self):
+        self.assertEqual(json.loads(self.request("POST","/api/export/connections",{})[1]),{"connections":[]})
+        policy=json.dumps({"ETL_SQL_MAIN":{"schema":"dbo","max_timeout_seconds":60}})
+        with patch.dict(os.environ,{"ETL_EXPORT_CONNECTIONS":policy}):
+            self.assertEqual(json.loads(self.request("POST","/api/export/connections",{})[1]),{"connections":["ETL_SQL_MAIN"]})
 
     def test_failed_job_has_reason_and_no_download(self):
         self.spec["source"]["path"]="missing.csv"

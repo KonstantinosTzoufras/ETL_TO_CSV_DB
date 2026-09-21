@@ -14,6 +14,7 @@ from .transforms import apply_transform, apply_transforms
 from .validations import required_error, max_length_error, lookup_error
 from .serialization import field_mapping_from_dict, pipeline_from_dict
 from .exporters import OutputWriter, RejectedWriter, excel_safe, legacy_projection
+from .db_export import SqlServerOutputWriter
 from .spec import ConfigError, MAX_SPLIT_GROUPS, require
 
 # Characters Windows and POSIX both forbid in a path segment, plus control
@@ -166,7 +167,7 @@ def map_row(row, columns, lookups):
     return legacy_projection(process_row(pipeline, SourceRow(1, row), lookups))
 
 
-def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=None):
+def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=None, pipeline_id=None, claim_table=None):
     pipeline = pipeline_from_dict(spec)
     require(limit is None or type(limit) is int and 1 <= limit <= 1000, "Preview limit must be 1–1000")
     require(limit is not None or output_root is not None, "Full execution needs an output directory")
@@ -186,11 +187,18 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
         # assigned to each label, so a label always returns to the same folder.
         split_writers, group_dirs, taken_dirnames = {}, {}, set()
         directory = None
+        db_writer = None
         if output_root is not None and limit is None:
             directory = Path(output_root) / uuid.uuid4().hex
             directory.mkdir(parents=True)
             report["directory"] = str(directory)
-            if split_field is None:
+            if spec["destination"]["kind"] == "sqlserver":
+                require(claim_table is not None, "Database export needs a saved pipeline; save it first")
+                db_writer = SqlServerOutputWriter(spec["columns"], spec["destination"], pipeline_id, spec["name"], claim_table)
+                # Runs to completion or leaves the previous table untouched -
+                # never a half-written one. See finish()'s own docstring.
+                stack.callback(db_writer.finish)
+            elif split_field is None:
                 writer = OutputWriter(directory, names, spec["destination"], stack, version=pipeline.version)
                 # Finalize write-only XLSX streams even if a later input row fails.
                 # Failed runs never expose their partial files for download.
@@ -213,6 +221,8 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
                 report["sample"].append(sample)
             if not result.valid and rejected:
                 rejected.write_result(result)
+            elif db_writer and result.valid:
+                db_writer.write_result(result)
             elif writer and result.valid:
                 writer.write_result(result)
             elif split_field and result.valid and directory is not None:
@@ -234,7 +244,10 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
                 progress({k: report[k] for k in ("processed", "valid", "invalid")})
         if directory is not None:
             kind = spec["destination"]["kind"]
-            if split_field is None:
+            if db_writer is not None:
+                report["files"] = ["rejected.csv"]
+                report["table"] = {"schema": db_writer.schema, "name": db_writer.table_name, "rows": db_writer.rows_written}
+            elif split_field is None:
                 report["files"] = [f"valid.{kind}", "rejected.csv"]
             else:
                 report["files"] = sorted(f"{dirname}/valid.{kind}" for dirname in group_dirs.values()) + ["rejected.csv"]
