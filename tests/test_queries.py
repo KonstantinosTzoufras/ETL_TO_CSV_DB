@@ -16,7 +16,8 @@ import pyodbc
 from etl.discovery import dispatch, SourceDiscovery
 from etl.engine import execute
 from etl.models import QueryDefinition, QueryParameter, SourceDefinition
-from etl.queries import QueryError, authorize, parameter_value, query_from_dict, query_to_dict, validate_sql
+from etl.queries import (QueryError, authorize, connection_policies, parameter_value,
+                         query_from_dict, query_to_dict, validate_sql)
 from etl.query_discovery import SqlServerQueryDiscovery
 from etl.query_source import SqlServerQuerySource
 from etl.serialization import pipeline_from_dict, pipeline_to_dict
@@ -368,3 +369,51 @@ class QuerySourceTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class SchemaWideApprovalTests(unittest.TestCase):
+    """A policy may approve a schema. It must not approve a server."""
+
+    SCHEMA_WIDE = json.dumps({"ETL_SQL_MAIN": {"read_only": True, "max_timeout_seconds": 60,
+                                               "objects": [["dbo", "*"]]}})
+
+    def query(self, sql, timeout=30):
+        return query_from_dict({"format_version": 1, "dialect": "tsql", "sql": sql,
+                                "parameters": [], "timeout_seconds": timeout})
+
+    def test_a_named_schema_admits_any_table_in_it(self):
+        with patch.dict(os.environ, {"ETL_QUERY_CONNECTIONS": self.SCHEMA_WIDE}):
+            for table in ("dbo.BRANDS", "dbo.Products", "dbo.anything_at_all"):
+                with self.subTest(table=table):
+                    authorize("ETL_SQL_MAIN", self.query(f"SELECT Code FROM {table}"))
+
+    def test_another_schema_is_still_refused(self):
+        with patch.dict(os.environ, {"ETL_QUERY_CONNECTIONS": self.SCHEMA_WIDE}):
+            with self.assertRaises(QueryError):
+                authorize("ETL_SQL_MAIN", self.query("SELECT Code FROM sales.Orders"))
+
+    def test_a_wildcard_schema_is_rejected_as_a_policy(self):
+        policy = json.dumps({"ETL_SQL_MAIN": {"read_only": True, "max_timeout_seconds": 60,
+                                              "objects": [["*", "*"]]}})
+        with patch.dict(os.environ, {"ETL_QUERY_CONNECTIONS": policy}):
+            with self.assertRaises(QueryError):
+                connection_policies()
+
+    def test_naming_objects_explicitly_still_works_unchanged(self):
+        policy = json.dumps({"ETL_SQL_MAIN": {"read_only": True, "max_timeout_seconds": 60,
+                                              "objects": [["dbo", "BRANDS"]]}})
+        with patch.dict(os.environ, {"ETL_QUERY_CONNECTIONS": policy}):
+            authorize("ETL_SQL_MAIN", self.query("SELECT Code FROM dbo.BRANDS"))
+            with self.assertRaises(QueryError):
+                authorize("ETL_SQL_MAIN", self.query("SELECT Code FROM dbo.Products"))
+
+    def test_a_schema_wide_policy_does_not_relax_anything_else(self):
+        with patch.dict(os.environ, {"ETL_QUERY_CONNECTIONS": self.SCHEMA_WIDE}):
+            for sql in ("DELETE FROM dbo.BRANDS", "SELECT Code INTO dbo.Copy FROM dbo.BRANDS",
+                        "EXEC dbo.DoThing", "SELECT 1; SELECT 2"):
+                with self.subTest(sql=sql):
+                    with self.assertRaises(QueryError):
+                        authorize("ETL_SQL_MAIN", self.query(sql))
+            # The approved timeout still binds.
+            with self.assertRaises(QueryError):
+                authorize("ETL_SQL_MAIN", self.query("SELECT Code FROM dbo.BRANDS", timeout=300))

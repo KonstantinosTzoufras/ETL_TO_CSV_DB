@@ -211,6 +211,10 @@ def connection_policies():
                   "QUERY_POLICY_INVALID", "Policy requires read-only attestation and a bounded timeout")
             check(isinstance(policy["objects"], list) and all(isinstance(pair, list) and len(pair) == 2 and all(isinstance(s, str) and s for s in pair) for pair in policy["objects"]),
                   "QUERY_POLICY_INVALID", "Policy objects must be [schema, name] pairs")
+            # A whole schema may be approved, but never a whole server: "*" in
+            # the schema position would make the policy meaningless.
+            check(all(pair[0] != "*" for pair in policy["objects"]),
+                  "QUERY_POLICY_INVALID", "Approve a named schema; \"*\" is only allowed in the object position")
         return policies
     except QueryError:
         raise
@@ -224,6 +228,26 @@ def authorize(reference, query):
     check(policy is not None, "QUERY_PERMISSION_DENIED", "Connection is not approved for query sources")
     check(query.timeout_seconds <= policy["max_timeout_seconds"], "QUERY_PERMISSION_DENIED", "Query timeout exceeds this connection's approved limit")
     _, tables = validate_sql(query.sql)
-    # Exact spelling is conservative for databases with case-sensitive names.
-    check(set(tables) <= {tuple(pair) for pair in policy["objects"]}, "QUERY_PERMISSION_DENIED", "Query references an object outside the approved set")
+    check(all(approves(policy, table) for table in tables), "QUERY_PERMISSION_DENIED", "Query references an object outside the approved set")
     return query
+
+
+def approves(policy, table):
+    """Whether one [schema, name] pair is inside a connection's approved set.
+
+    A policy may name a whole schema with ["dbo", "*"]. That is a decision about
+    breadth, not about safety: the same tables are already readable in full as
+    plain table sources, and SELECT-only parsing plus the database account's own
+    permissions are what actually bound a query.
+
+    Exact spelling is kept for object names, which is conservative on a
+    case-sensitive database. "*" is a wildcard only in the name position, never
+    in the schema.
+    """
+    schema, name = tuple(table)
+    for pair in policy["objects"]:
+        if pair[0] != schema:
+            continue
+        if pair[1] == "*" or pair[1] == name:
+            return True
+    return False

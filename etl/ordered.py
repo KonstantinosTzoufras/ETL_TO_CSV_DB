@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 from .models import OrderedQueryPipeline, QueryExportStep, Pipeline, SourceDefinition
-from .queries import authorize, connection_policies, query_to_dict, QueryError
+from .queries import approves, authorize, connection_policies, query_to_dict, QueryError
 from .serialization import pipeline_from_dict, pipeline_to_dict
 from .spec import require, keys, validate
 from .sources import input_path
@@ -87,7 +87,7 @@ def preflight(pipeline, root, output_root, *, steps=None):
             else:
                 require(source['kind']=='sqlserver' and source['connection_env']==pipeline.connection_env, 'Only static lookups on the shared connection are supported')
                 policy=connection_policies().get(pipeline.connection_env)
-                if policy is None or [source['schema'],source['table']] not in policy['objects']:
+                if policy is None or not approves(policy,[source['schema'],source['table']]):
                     raise QueryError('QUERY_PERMISSION_DENIED','SQL lookup object is not approved')
 
 
