@@ -266,11 +266,34 @@ class QuerySourceTests(unittest.TestCase):
                 cursor.close.assert_called_once();connection.close.assert_called_once()
 
     def test_bad_schema_closes_and_has_actionable_error(self):
-        for headers in [[''],['x','x'],['X','x']]:
+        for headers in [['']]:
             with fake_sql(description=[(h,str,None,None,None,None,None) for h in headers]) as (sessions,_):
                 with self.assertRaises(QueryError) as error:SqlServerQuerySource(source()).read_schema()
                 self.assertEqual(error.exception.code,'QUERY_SCHEMA_INVALID')
                 for resource in sessions[0]:resource.close.assert_called_once()
+
+    def test_join_wildcard_duplicate_columns_are_stably_disambiguated(self):
+        sql = 'SELECT a.*, b.* FROM dbo.BRANDS a JOIN dbo.Regions b ON a.RegionId=b.Id'
+        description = [
+            ('ID', int, None, None, 19, 0, False),
+            ('CODE', str, None, 20, None, None, False),
+            ('ID', int, None, None, 19, 0, False),
+            ('Code__2', str, None, 40, None, None, True),
+            ('CODE', str, None, 40, None, None, True),
+        ]
+        rows = [(1, '003', 9, 'explicit', 'North')]
+        q = query(sql, [])
+        with fake_sql(rows=rows, description=description) as (sessions, _):
+            with SqlServerQuerySource(source(q), batch_size=10).open() as stream:
+                self.assertEqual([column.name for column in stream.schema],
+                                 ['ID', 'CODE', 'ID__2', 'Code__2', 'CODE__3'])
+                result = next(iter(stream))
+            self.assertEqual(dict(result.values), {
+                'ID': 1, 'CODE': '003', 'ID__2': 9,
+                'Code__2': 'explicit', 'CODE__3': 'North',
+            })
+            sessions[0][1].execute.assert_called_once_with(sql)
+            sessions[0][1].fetchall.assert_not_called()
 
     def test_preview_full_equivalence_and_exact_export(self):
         with tempfile.TemporaryDirectory() as temporary, fake_sql() as (sessions,_):

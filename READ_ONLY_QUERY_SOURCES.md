@@ -102,7 +102,8 @@ Parser warnings containing SQL are suppressed by rejecting their fallback paths.
 SQLGlot is not a SQL Server permission checker or a complete semantic verifier:
 [SQLGlot parser documentation](https://sqlglot.com/sqlglot/parser.html).
 
-Supported: schema-qualified local table/view references; column expressions and
+Supported: schema-qualified local table/view references; `SELECT *`, qualified
+wildcards such as `a.*`, column expressions and
 aliases; INNER/LEFT/RIGHT/FULL/CROSS joins; derived tables and SELECT subqueries;
 WHERE/GROUP BY/HAVING/ORDER BY; DISTINCT/TOP; arithmetic, comparisons, boolean
 operators, CASE, IN/BETWEEN/LIKE/EXISTS; COALESCE/NULLIF, UPPER/LOWER/LEN,
@@ -137,8 +138,13 @@ SQL Server even though they do not modify business data.
 `SqlServerQuerySource.read_schema()` and `.open()` implement the existing Source
 contract. Column metadata comes only from cursor.description: names, Python read
 type, nullable flag, sizes, precision and scale where available. Unknown remains
-None. No exact SQL declared-type or lineage inference. Empty/duplicate output
-names (including case-only duplicates) require explicit unique aliases.
+None. No exact SQL declared-type or lineage inference. Empty output names require
+an explicit alias. Duplicate result labels, common with `SELECT *` across JOINs,
+are kept in result order and receive deterministic case-insensitive suffixes:
+`ID`, `ID__2`, `ID__3`. A generated suffix skips any explicit label already in
+the result. This naming is source metadata only; SQL text is not rewritten.
+Explicit aliases remain preferable for saved production pipelines because a
+schema change can alter wildcard column order and therefore generated suffixes.
 
 Inspection executes the unchanged bound SELECT, reads description, and fetches
 no application rows. It is not a zero-work database operation; the driver/server

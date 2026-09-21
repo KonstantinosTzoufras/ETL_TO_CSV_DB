@@ -33,6 +33,38 @@ def binding_sizes(parameters, values, driver):
     return sizes
 
 
+def query_schema(description):
+    """Build query metadata, disambiguating JOIN/wildcard result names.
+
+    DB-API exposes result labels but not reliable table lineage. Keep the first
+    occurrence unchanged and suffix later case-insensitive duplicates in result
+    order. Avoid generated names that collide with an explicit result label.
+    """
+    check(bool(description), "QUERY_SCHEMA_INVALID", "Query requires nonempty result columns")
+    raw = [item[0] for item in description]
+    check(all(isinstance(name, str) and name.strip() for name in raw),
+          "QUERY_SCHEMA_INVALID", "Give every unnamed query expression an alias")
+    reserved = {name.casefold() for name in raw}
+    used, names = set(), []
+    for name in raw:
+        folded = name.casefold()
+        if folded not in used:
+            candidate = name
+        else:
+            number = 2
+            while True:
+                suffix = f"__{number}"
+                candidate = name[:128 - len(suffix)] + suffix
+                candidate_folded = candidate.casefold()
+                if candidate_folded not in used and candidate_folded not in reserved:
+                    break
+                number += 1
+        used.add(candidate.casefold())
+        names.append(candidate)
+    renamed = [tuple([name, *tuple(item)[1:]]) for name, item in zip(names, description)]
+    return _sql_schema(renamed)
+
+
 class SqlServerQuerySource:
     def __init__(self, definition, batch_size=1000, *, timeout_cap=None):
         raw = _source_to_dict(definition) if isinstance(definition, SourceDefinition) else definition
@@ -71,8 +103,7 @@ class SqlServerQuerySource:
             else:
                 cursor.execute(query.sql)
             try:
-                schema = _sql_schema(cursor.description)
-                check(len({c.name.casefold() for c in schema}) == len(schema), "QUERY_SCHEMA_INVALID", "Give each result column a unique alias")
+                schema = query_schema(cursor.description)
             except QueryError:
                 raise
             except ConfigError:
