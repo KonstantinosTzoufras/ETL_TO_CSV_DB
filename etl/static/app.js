@@ -91,12 +91,12 @@ function openDefinition(spec,id=null) {
   if(spec.kind==="ordered_query_export"){openOrdered(spec,id);return;}
   if(typeof clearOrdered==="function")clearOrdered();
   if(typeof clearTemplateDraft==="function")clearTemplateDraft();
-  definition=structuredClone(spec); pipelineId=id; dirty=false; render(); renderSaved();
+  definition=structuredClone(spec); pipelineId=id; dirty=false; render(); renderSaved(); describeSave();
 }
 function renderSaved() {
-  $("pipelines").innerHTML=saved.length?saved.map(p=>`<div class="saved-pipeline"><button class="pipeline ${p.id===pipelineId?"active":""}" data-pipeline="${esc(p.id)}">${esc(p.name)}<small>${esc(p.spec.kind==="ordered_query_export"?"ORDERED QUERIES":p.spec.source.kind.toUpperCase())} → ${esc(p.spec.kind==="ordered_query_export"?`${p.spec.steps.length} FILES`:p.spec.destination.kind.toUpperCase())}</small></button><button class="delete-pipeline" data-delete-pipeline="${esc(p.id)}" aria-label="Delete pipeline ${esc(p.name)}">Delete</button></div>`).join(""):'<p class="muted">Save your first pipeline to reuse it here.</p>';
+  $("pipelines").innerHTML=saved.length?saved.map(p=>`<div class="saved-pipeline"><button class="pipeline ${p.id===pipelineId?"active":""}" data-pipeline="${esc(p.id)}">${esc(p.name)}<small>${esc(p.spec.kind==="ordered_query_export"?"ORDERED QUERIES":p.spec.source.kind.toUpperCase())} → ${esc(p.spec.kind==="ordered_query_export"?`${p.spec.steps.length} FILES`:p.spec.destination.kind.toUpperCase())} · ${esc(String(p.updated).slice(0,16).replace("T"," "))}</small></button><button class="delete-pipeline" data-delete-pipeline="${esc(p.id)}" aria-label="Delete pipeline ${esc(p.name)}">Delete</button></div>`).join(""):'<p class="muted">Save your first pipeline to reuse it here.</p>';
 }
-async function refreshSaved() { saved=await api("/api/pipelines");renderSaved(); }
+async function refreshSaved() { saved=await api("/api/pipelines");renderSaved();describeSave(); }
 function preview(report) {
   $("results").hidden=false;
   $("counts").innerHTML=`<div class="count"><b>${report.processed}</b>Sampled records</div><div class="count good"><b>${report.valid}</b>Valid</div><div class="count bad"><b>${report.invalid}</b>Rejected</div>`;
@@ -158,7 +158,30 @@ $("inspect").onclick=()=>action(async()=>{
   read(); setColumnPicker(result.columns,candidate);
   notify(`${result.columns.length} source columns available. Select some or all, then Add selected columns.`);
 });
-$("save").onclick=()=>action(async()=>{const result=await api("/api/pipelines",{id:pipelineId,spec:workingDefinition()});pipelineId=result.id;dirty=false;await refreshSaved();notify("Pipeline saved. You can load it from the sidebar.");});
+// A reload forgets which saved pipeline is on screen, so saving again would
+// quietly create a twin under the same name. Ask instead of guessing.
+function saveTarget(spec){
+  if(pipelineId)return pipelineId;
+  const twins=saved.filter(item=>item.name===spec.name);
+  if(!twins.length)return null;
+  const newest=twins[0];
+  return confirm(`"${spec.name}" is already saved${twins.length>1?` (${twins.length} copies)`:""}.
+
+OK — update the existing one
+Cancel — keep it and save a separate copy`)?newest.id:null;
+}
+function describeSave(){
+  const current=saved.find(item=>item.id===pipelineId);
+  $("save-hint").textContent=current
+    ?`Saving updates "${current.name}".`
+    :"Saving creates a new saved pipeline.";
+}
+$("save").onclick=()=>action(async()=>{
+  const spec=workingDefinition(), target=saveTarget(spec);
+  const result=await api("/api/pipelines",{id:target,spec,provenance:typeof pipelineProvenance!=="undefined"?pipelineProvenance:undefined});
+  pipelineId=result.id;dirty=false;await refreshSaved();
+  notify(target?"Pipeline updated.":"Pipeline saved as a new entry. You can load it from the sidebar.");
+});
 $("preview").onclick=()=>action(async()=>{const report=typeof orderedDraft!=="undefined" && orderedDraft?await api("/api/ordered/preview",{spec:workingDefinition(),step_id:orderedDraft.steps[orderedIndex].id,diagnostics:true}):await api("/api/preview",{spec:read(),diagnostics:true});preview(report);notify("Preview complete. No export files were created.");});
 $("run").onclick=()=>action(async()=>{await api("/api/runs",{spec:workingDefinition()});notify("Export started. Follow its progress in Run history.");await refreshRuns();});
 $("refresh").onclick=()=>action(refreshRuns);
