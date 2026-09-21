@@ -134,6 +134,38 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.request("GET",f"/download/{run_id}/rejected.csv")[0],200)
         self.assertEqual(self.request("GET",f"/download/{run_id}/etl.sqlite3")[0],404)
 
+    def test_split_export_downloads_each_group_and_rejects_traversal(self):
+        self.spec["destination"]["split_by"]="country"
+        status,body=self.request("POST","/api/runs",{"spec":self.spec})
+        self.assertEqual(status,202)
+        run_id=json.loads(body)["id"]
+        run=self.wait_run(run_id)
+        self.assertEqual(run["status"],"completed",run.get("error"))
+        files=run["report"]["files"]
+        self.assertIn("rejected.csv",files)
+        self.assertTrue(any("/" in f for f in files),"expected at least one GROUP/valid.csv entry")
+        for name in files:
+            status,body=self.request("GET",f"/download/{run_id}/{name}")
+            self.assertEqual(status,200,name)
+        # A plain-run filename must not be accepted once the run is split.
+        self.assertEqual(self.request("GET",f"/download/{run_id}/valid.csv")[0],404)
+        # The server-computed allowlist, not string matching alone, blocks escape.
+        group=next(f.split("/")[0] for f in files if "/" in f)
+        self.assertEqual(self.request("GET",f"/download/{run_id}/{group}/../../etl.sqlite3")[0],404)
+        self.assertEqual(self.request("GET",f"/download/{run_id}/{group}/valid.xlsx")[0],404)
+
+    def test_a_run_saved_before_split_export_still_downloads_by_its_old_names(self):
+        status,body=self.request("POST","/api/runs",{"spec":self.spec})
+        run_id=json.loads(body)["id"]
+        run=self.wait_run(run_id)
+        self.assertEqual(run["status"],"completed")
+        with self.app.store.connect() as db:
+            report=json.loads(db.execute("SELECT report FROM runs WHERE id=?",(run_id,)).fetchone()["report"])
+            del report["files"]
+            db.execute("UPDATE runs SET report=? WHERE id=?",(json.dumps(report),run_id))
+        self.assertEqual(self.request("GET",f"/download/{run_id}/valid.csv")[0],200)
+        self.assertEqual(self.request("GET",f"/download/{run_id}/rejected.csv")[0],200)
+
     def test_failed_job_has_reason_and_no_download(self):
         self.spec["source"]["path"]="missing.csv"
         _,body=self.request("POST","/api/runs",{"spec":self.spec})

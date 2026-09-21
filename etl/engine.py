@@ -1,4 +1,5 @@
 """Pure mapping and validation with bounded previews and streamed exports."""
+import re
 import uuid
 from typing import NamedTuple
 from contextlib import ExitStack
@@ -13,7 +14,41 @@ from .transforms import apply_transform, apply_transforms
 from .validations import required_error, max_length_error, lookup_error
 from .serialization import field_mapping_from_dict, pipeline_from_dict
 from .exporters import OutputWriter, RejectedWriter, excel_safe, legacy_projection
-from .spec import ConfigError, require
+from .spec import ConfigError, MAX_SPLIT_GROUPS, require
+
+# Characters Windows and POSIX both forbid in a path segment, plus control
+# characters. A trailing dot or space is trimmed separately below.
+_UNSAFE_GROUP_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL",
+                           *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+
+
+def split_group_label(value):
+    """The identity of a group: None and "" stay distinct, as v2 requires elsewhere."""
+    if value is None:
+        return "NULL"
+    if value == "":
+        return "EMPTY"
+    return text(value)
+
+
+def _safe_group_name(label, taken):
+    """A label turned into a directory name that cannot collide or escape.
+
+    Two different labels may sanitize to the same string (e.g. "A/B" and "A\\B"
+    both become "A_B"); the second claimant is suffixed rather than merged into
+    the first group's file, so no row silently lands in the wrong bucket.
+    """
+    cleaned = _UNSAFE_GROUP_CHARS.sub("_", label).strip(" .")
+    cleaned = cleaned[:80] or "value"
+    if cleaned.upper() in _WINDOWS_RESERVED_NAMES:
+        cleaned = "_" + cleaned
+    candidate, suffix = cleaned, 2
+    while candidate.casefold() in taken:
+        candidate = f"{cleaned}__{suffix}"
+        suffix += 1
+    taken.add(candidate.casefold())
+    return candidate
 
 
 def transform(value, column):
@@ -145,14 +180,21 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
         for column in spec["columns"]:
             require("source" not in column or column["source"] in headers, f"Unknown source column: {column.get('source')}")
         writer = rejected = None
+        split_field = spec["destination"].get("split_by")
+        # One writer per distinct value, created only when that value is first
+        # seen. group_dirs remembers the sanitized directory name already
+        # assigned to each label, so a label always returns to the same folder.
+        split_writers, group_dirs, taken_dirnames = {}, {}, set()
+        directory = None
         if output_root is not None and limit is None:
             directory = Path(output_root) / uuid.uuid4().hex
             directory.mkdir(parents=True)
             report["directory"] = str(directory)
-            writer = OutputWriter(directory, names, spec["destination"], stack, version=pipeline.version)
-            # Finalize write-only XLSX streams even if a later input row fails.
-            # Failed runs never expose their partial files for download.
-            stack.callback(writer.finish)
+            if split_field is None:
+                writer = OutputWriter(directory, names, spec["destination"], stack, version=pipeline.version)
+                # Finalize write-only XLSX streams even if a later input row fails.
+                # Failed runs never expose their partial files for download.
+                stack.callback(writer.finish)
             rejected = RejectedWriter(directory, spec["destination"], stack, version=pipeline.version)
         prepared = prepare_columns(pipeline)
         for row in islice(rows, limit) if limit is not None else rows:
@@ -173,6 +215,27 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
                 rejected.write_result(result)
             elif writer and result.valid:
                 writer.write_result(result)
+            elif split_field and result.valid and directory is not None:
+                label = split_group_label(result.converted_values.get(split_field))
+                target = split_writers.get(label)
+                if target is None:
+                    require(len(split_writers) < MAX_SPLIT_GROUPS,
+                            f"Splitting by {split_field} would exceed the {MAX_SPLIT_GROUPS}-file limit; "
+                            "choose a column with fewer distinct values.")
+                    dirname = _safe_group_name(label, taken_dirnames)
+                    group_dirs[label] = dirname
+                    subdirectory = directory / dirname
+                    subdirectory.mkdir()
+                    target = OutputWriter(subdirectory, names, spec["destination"], stack, version=pipeline.version)
+                    stack.callback(target.finish)
+                    split_writers[label] = target
+                target.write_result(result)
             if progress and number % 1000 == 0:
                 progress({k: report[k] for k in ("processed", "valid", "invalid")})
+        if directory is not None:
+            kind = spec["destination"]["kind"]
+            if split_field is None:
+                report["files"] = [f"valid.{kind}", "rejected.csv"]
+            else:
+                report["files"] = sorted(f"{dirname}/valid.{kind}" for dirname in group_dirs.values()) + ["rejected.csv"]
     return report

@@ -490,6 +490,21 @@ td {
 .run .queued {
   color: #a67c30;
 }
+/* A split export can produce far more files than fit inline; collapse them
+   behind a disclosure instead of stretching the run card. */
+.split-downloads {
+  display: inline-block;
+  margin-top: 4px;
+}
+.split-downloads summary {
+  cursor: pointer;
+  color: #196448;
+  font-weight: 600;
+}
+.split-downloads a {
+  display: block;
+  margin: 4px 0 0 12px;
+}
 #notice:not(:empty) {
   background: #e9f4ed;
   color: #266447;

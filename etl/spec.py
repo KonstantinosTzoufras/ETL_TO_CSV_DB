@@ -3,6 +3,10 @@ import codecs
 import re
 
 MAX_OUTPUT_COLUMNS = 4096
+# One output file per distinct value would let a near-unique column (an id, a
+# timestamp) explode into thousands of files and file handles. This governs
+# split_by only; the normal single-file case has no such ceiling.
+MAX_SPLIT_GROUPS = 200
 
 
 class ConfigError(ValueError):
@@ -51,7 +55,7 @@ TRANSFORMS = {"trim", "upper", "lower", "empty_to_null"}
 
 def destination_spec(destination, version):
     require(type(version) is int and version in (1, 2), "Pipeline version must be 1 or 2")
-    allowed = {"kind", "delimiter"}
+    allowed = {"kind", "delimiter", "split_by"}
     if version == 2:
         allowed |= {"encoding", "null_value", "formula_policy"}
     keys(destination, allowed, "destination")
@@ -61,6 +65,9 @@ def destination_spec(destination, version):
     require(destination.get("encoding", "utf-8-sig") in ("utf-8", "utf-8-sig"), "Export encoding must be utf-8 or utf-8-sig")
     require(isinstance(destination.get("null_value", ""), str), "null_value must be a string (empty explicitly permits NULL/empty collapse)")
     require(destination.get("formula_policy", "preserve") in ("preserve", "apostrophe"), "formula_policy must be preserve or apostrophe")
+    if "split_by" in destination:
+        require(isinstance(destination["split_by"], str) and destination["split_by"].strip() and len(destination["split_by"]) <= 128,
+                "split_by must name an output column (maximum 128 characters)")
 
 
 def validate(spec):
@@ -94,5 +101,8 @@ def validate(spec):
             source_spec(lookup.get("source"))
             require(lookup["source"]["kind"] != "sqlserver_query", "Query sources are not supported as lookup dependencies")
             require(isinstance(lookup.get("column"), str) and lookup["column"], f"{name}: lookup column required")
-    destination_spec(spec.get("destination"), spec["version"])
+    destination = spec.get("destination")
+    destination_spec(destination, spec["version"])
+    if isinstance(destination, dict) and "split_by" in destination:
+        require(destination["split_by"].casefold() in names, f"split_by ({destination['split_by']}) must name an existing output column")
     return spec

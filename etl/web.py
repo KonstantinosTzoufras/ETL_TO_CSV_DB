@@ -164,16 +164,23 @@ def handler_for(app):
                     with file.open("rb") as handle:
                         shutil.copyfileobj(handle, self.wfile, 65536)
                     return
-                if not run or is_ordered(run["spec"]) or len(parts) != 4 or run["status"] != "completed" or parts[3] not in {"valid.csv", "valid.xlsx", "rejected.csv"}:
+                # A split export lives one directory level down (GROUP/valid.csv),
+                # so a plain run's tail may be one or two segments. report["files"]
+                # is server-computed at run completion; a run stored before this
+                # existed has no such list, so it falls back to the exact names
+                # the single-file case has always produced.
+                relative = "/".join(parts[3:]) if run and not is_ordered(run["spec"]) and len(parts) in (4, 5) else None
+                allowed = set(run["report"].get("files", ["valid.csv", "valid.xlsx", "rejected.csv"])) if run else set()
+                if not run or is_ordered(run["spec"]) or relative is None or run["status"] != "completed" or relative not in allowed:
                     self.respond(404, {"error": "Export not found"})
                     return
-                file = (Path(run["report"]["directory"]) / parts[3]).resolve()
+                file = (Path(run["report"]["directory"]) / relative).resolve()
                 if not file.is_relative_to(app.data / "runs") or not file.is_file():
                     self.respond(404, {"error": "Export not found"})
                     return
                 self.send_response(200)
                 self.send_header("Content-Type", mimetypes.guess_type(file)[0] or "application/octet-stream")
-                self.send_header("Content-Disposition", f'attachment; filename="{parts[3]}"')
+                self.send_header("Content-Disposition", f'attachment; filename="{Path(relative).name}"')
                 self.send_header("Content-Length", str(file.stat().st_size))
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()

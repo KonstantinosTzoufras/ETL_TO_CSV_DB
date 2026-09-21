@@ -44,6 +44,9 @@ def from_dict(spec):
         identifier=raw['id']
         require(isinstance(identifier,str) and STEP_ID.fullmatch(identifier) and identifier not in RESERVED, 'Step ID must be a safe lowercase identifier (1-48 characters), not a reserved filename')
         require(identifier not in seen,'Step IDs must be unique');seen.add(identifier)
+        # download_path below names a step's file as f'{step_id}.{extension}', so
+        # a per-group subdirectory has nowhere to be served from yet.
+        require(not isinstance(raw.get('destination'),dict) or 'split_by' not in raw['destination'], 'split_by is not supported for ordered query steps')
         single=pipeline_from_dict(step_spec(spec.get('connection_env'),raw))
         for column in raw['columns']:
             lookup=column.get('lookup',{}).get('source')

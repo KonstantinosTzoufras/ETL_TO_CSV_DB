@@ -51,7 +51,9 @@ function read(options={}) {
     if(field("max_length").value!=="") column.max_length=Number(field("max_length").value);
     return column;
   });
-  definition={version:definition.version,name:$("name").value,source:source(),columns,destination:{...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value}};
+  const destination={...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value};
+  if($("split-by").value)destination.split_by=$("split-by").value;else delete destination.split_by;
+  definition={version:definition.version,name:$("name").value,source:source(),columns,destination};
   return structuredClone(definition);
 }
 function renderColumns() {
@@ -64,6 +66,11 @@ function renderColumns() {
   }).join("");
   // An empty draft has no field pipeline to describe yet.
   $("stage-guide").hidden = !definition.columns.length;
+  // Keep the current choice only if that field still exists; a renamed or
+  // removed column falls back to "no split" rather than pointing at nothing.
+  const currentSplit=$("split-by").value;
+  $("split-by").innerHTML='<option value="">No split — one file</option>'+definition.columns.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
+  $("split-by").value=definition.columns.some(c=>c.name===currentSplit)?currentSplit:"";
   renderColumnPicker();
   window.EditorControls?.mappings();
 }
@@ -83,7 +90,7 @@ function render() {
   $("format").value=definition.destination.kind; setDelimiter("output-delimiter",definition.destination.delimiter||";");
   $("processing-note").textContent=definition.version===2?"Version 2: NULL and empty string are distinct. Transforms run in the order entered; empty_to_null is explicit.":"Version 1 (legacy): optional empty strings become NULL. Saved pipeline processing behavior is preserved.";
   if(typeof renderQuery==="function")renderQuery(s);
-  sourceFields(); renderColumns(); window.EditorControls?.sync(); $("json").value=JSON.stringify(definition,null,2);
+  sourceFields(); renderColumns(); $("split-by").value=definition.destination.split_by||""; window.EditorControls?.sync(); $("json").value=JSON.stringify(definition,null,2);
   if(typeof renderOrderedMode==="function")renderOrderedMode();
   $("results").hidden=true; $("source-columns").replaceChildren(); $("available-columns").replaceChildren();
 }
@@ -109,9 +116,25 @@ function preview(report) {
   $("preview-table").innerHTML=`<table><thead><tr><th>STATUS</th>${names.map(n=>`<th>${esc(n)}</th>`).join("")}<th>VALIDATION</th></tr></thead><tbody>${report.sample.map(row=>`<tr><td class="${Object.keys(row.errors).length?"invalid":"valid"}">${Object.keys(row.errors).length?"Rejected":"Valid"}</td>${names.map(n=>`<td>${esc(displayValue((row.values || row.converted_values)[n]))}</td>`).join("")}<td class="reason">${Object.entries(row.errors).map(([k,v])=>`${esc(k)}: ${esc(v.map(error=>typeof error === "string" ? error : error.message).join(", "))}`).join("<br>")}</td></tr>`).join("")}</tbody></table>`;
   $("results").scrollIntoView({behavior:"smooth",block:"start"});
 }
+function downloadLinks(run){
+  const kind=run.spec.destination.kind;
+  // Runs saved before split export existed have no report.files; keep their
+  // exact former behaviour rather than guessing at names that may not exist.
+  const files=run.report.files||[`valid.${kind}`,"rejected.csv"];
+  const valid=files.filter(f=>f!=="rejected.csv");
+  const rejectedLink=files.includes("rejected.csv")?`<a href="/download/${run.id}/rejected.csv">Rejected rows</a>`:"";
+  if(!valid.length)return rejectedLink;  // every row was rejected; no group was ever created
+  const anchor=f=>{
+    const group=f.includes("/")?f.split("/")[0]:null;
+    return `<a href="/download/${run.id}/${esc(f)}">${group?esc(group):`Download ${esc(kind.toUpperCase())}`}</a>`;
+  };
+  if(valid.length<=4)return valid.map(anchor).join("")+rejectedLink;  // a few groups read fine as plain links
+  const splitBy=run.spec.destination.split_by;
+  return `<details class="split-downloads"><summary>${valid.length} files${splitBy?` · split by ${esc(splitBy)}`:""}</summary>${valid.map(anchor).join("")}</details>${rejectedLink}`;
+}
 async function refreshRuns() {
   const runs=await api("/api/runs");
-  $("runs").innerHTML=runs.length?runs.map(run=>run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br><a href="/download/${run.id}/valid.${run.spec.destination.kind}">Download ${run.spec.destination.kind.toUpperCase()}</a><a href="/download/${run.id}/rejected.csv">Rejected rows</a><button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`).join(""):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
+  $("runs").innerHTML=runs.length?runs.map(run=>run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br>${downloadLinks(run)}<button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`).join(""):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
   clearTimeout(timer);
   if(runs.some(r=>["queued","running"].includes(r.status))) timer=setTimeout(()=>refreshRuns().catch(e=>notify(e.message,true)),1500);
 }
