@@ -1,5 +1,5 @@
 "use strict";
-let orderedDraft=null, orderedIndex=0;
+let orderedDraft=null, orderedIndex=0, orderedConnectionsLoaded=false;
 const orderedStep=number=>({id:`step-${number}`,name:`Step ${number}`,processing_version:2,query:{format_version:1,dialect:"tsql",sql:"",parameters:[],timeout_seconds:60},columns:[],destination:{kind:"csv",delimiter:";"}});
 function clearOrdered(){orderedDraft=null;$("ordered-editor").hidden=true;}
 function renderOrderedMode(){
@@ -15,6 +15,10 @@ function openOrdered(spec,id=null){
  if(![...$("ordered-connection").options].some(o=>o.value===spec.connection_env))$("ordered-connection").add(new Option(spec.connection_env||"Select an approved connection",spec.connection_env));
  $("ordered-connection").value=spec.connection_env;
  showOrderedStep();renderSaved();
+ // Opening this editor means the shared connection list is needed right
+ // away; loading it then, once, saves the separate click every time. The
+ // button stays for a manual re-check after a restart.
+ if(!orderedConnectionsLoaded) action(loadOrderedConnections);
 }
 function showOrderedStep(){
  const step=orderedDraft.steps[orderedIndex];
@@ -41,7 +45,20 @@ $("ordered-add").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDra
 function moveOrdered(delta){return action(async()=>{captureOrderedStep();const next=orderedIndex+delta;if(next<0||next>=orderedDraft.steps.length)return;[orderedDraft.steps[orderedIndex],orderedDraft.steps[next]]=[orderedDraft.steps[next],orderedDraft.steps[orderedIndex]];orderedIndex=next;showOrderedStep();dirty=true;});}
 $("ordered-up").onclick=()=>moveOrdered(-1);$("ordered-down").onclick=()=>moveOrdered(1);
 $("ordered-remove").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDraft.steps.length===1)throw new Error("Keep at least one step");orderedDraft.steps.splice(orderedIndex,1);orderedIndex=Math.min(orderedIndex,orderedDraft.steps.length-1);showOrderedStep();dirty=true;});
-$("ordered-connections").onclick=()=>action(async()=>{const data=await api("/api/query/connections",{});const selected=orderedDraft.connection_env;$("ordered-connection").replaceChildren(new Option("Select an approved connection",""));data.connections.forEach(name=>$("ordered-connection").add(new Option(name,name)));if(selected && !data.connections.includes(selected))$("ordered-connection").add(new Option(selected+" (not currently approved)",selected));$("ordered-connection").value=selected;notify(data.connections.length?"Shared connection references loaded; select explicitly.":"No read-only query connections are approved.");});
+async function loadOrderedConnections(){
+ const data=await api("/api/query/connections",{});
+ orderedConnectionsLoaded=true;
+ const selected=orderedDraft.connection_env;
+ $("ordered-connection").replaceChildren(new Option("Select an approved connection",""));
+ data.connections.forEach(name=>$("ordered-connection").add(new Option(name,name)));
+ if(selected && !data.connections.includes(selected))$("ordered-connection").add(new Option(selected+" (not currently approved)",selected));
+ $("ordered-connection").value=selected;
+ return data;
+}
+$("ordered-connections").onclick=()=>action(async()=>{
+ const data=await loadOrderedConnections();
+ notify(data.connections.length?"Shared connection references loaded; select explicitly.":"No read-only query connections are approved.");
+});
 // Native listeners respond to user selections, not jQuery's change.select2
 // display refresh (which also invokes an onchange property handler).
 $("ordered-connection").addEventListener("change",()=>{

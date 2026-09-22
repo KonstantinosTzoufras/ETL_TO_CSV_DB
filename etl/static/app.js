@@ -61,19 +61,29 @@ function read(options={}) {
   definition={version:definition.version,name:$("name").value,source:source(),columns,destination};
   return structuredClone(definition);
 }
+let exportConnectionsLoaded=false;
+async function loadExportConnections(){
+  const result=await api("/api/export/connections",{});
+  exportConnectionsLoaded=true;
+  const selected=$("export-connection").value;
+  $("export-connection").innerHTML='<option value="">Select an approved connection</option>'+result.connections.map(name=>`<option>${esc(name)}</option>`).join("");
+  if(selected)$("export-connection").value=selected;
+  return result;
+}
 function toggleExportFields(){
   const isDb=$("format").value==="sqlserver";
   document.querySelectorAll("#export-card .file-format-only").forEach(el=>el.hidden=isDb);
   $("export-connection-field").hidden=!isDb;
   $("export-connections").hidden=!isDb;
   $("export-table-hint").hidden=!isDb;
+  // Choosing "Database table" means this list is needed right away; loading
+  // it then, once, saves the separate click every time. The button stays for
+  // a manual re-check after ETL_EXPORT_CONNECTIONS changes and a restart.
+  if(isDb && !exportConnectionsLoaded) action(loadExportConnections);
 }
 $("format").onchange=()=>{toggleExportFields();dirty=true;};
 $("export-connections").onclick=()=>action(async()=>{
-  const result=await api("/api/export/connections",{});
-  const selected=$("export-connection").value;
-  $("export-connection").innerHTML='<option value="">Select an approved connection</option>'+result.connections.map(name=>`<option>${esc(name)}</option>`).join("");
-  if(selected)$("export-connection").value=selected;
+  const result=await loadExportConnections();
   notify(result.connections.length?"Approved export connections loaded.":"No database connections are approved for export. Set ETL_EXPORT_CONNECTIONS and restart.");
 });
 function renderColumns() {

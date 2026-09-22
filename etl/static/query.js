@@ -1,4 +1,5 @@
 "use strict";
+let queryConnectionsLoaded=false;
 function querySource() {
   let parameters;
   try { parameters=JSON.parse($("query-parameters").value); }
@@ -16,17 +17,36 @@ function renderQuery(source) {
     const reference=source.connection_env;
     if(![...$("query-connection").options].some(o=>o.value===reference))$("query-connection").add(new Option(reference+" (approval checked on use)",reference));
     $("query-connection").value=reference;
+    // Showing this source means the approved list is needed right away;
+    // loading it then, once, saves the separate click every time. The
+    // button stays for a manual re-check after a restart. Guarded: render
+    // logic is also exercised standalone (tests/query_render.cjs) without
+    // action() or a live api() in scope.
+    if(!queryConnectionsLoaded && typeof action==="function") action(loadQueryConnections);
   }
 }
 $("query-sql").oninput=()=>{$("query-sql").dataset.edited="true";};
-$("query-connections").onclick=()=>action(async()=>{
+async function loadQueryConnections(){
   const selected=$("query-connection").value;
   const result=await api("/api/query/connections",{});
+  queryConnectionsLoaded=true;
   $("query-connection").replaceChildren(new Option("Select an approved connection",""));
   result.connections.forEach(name=>$("query-connection").add(new Option(name,name)));
   if(result.connections.includes(selected))$("query-connection").value=selected;
   resetDiscovery();
+  return result;
+}
+$("query-connections").onclick=()=>action(async()=>{
+  const result=await loadQueryConnections();
   notify(result.connections.length?"Approved references loaded. Select one explicitly.":"No query connections approved. An administrator must configure a read-only account first.");
+});
+// Manually switching the source type to SQL Query (rather than loading a
+// pipeline that already has one) does not go through renderQuery, so it
+// needs its own trigger - same one-time guard either way. Guarded: this file
+// also runs standalone in tests/query_render.cjs, with no document global.
+if(typeof document!=="undefined") document.addEventListener("change",event=>{
+  if(event.target.id==="source-kind" && event.target.value==="sqlserver_query" && !queryConnectionsLoaded)
+    action(loadQueryConnections);
 });
 $("query-validate").onclick=()=>action(async()=>{
   await api("/api/query/validate",{query:querySource().query});
