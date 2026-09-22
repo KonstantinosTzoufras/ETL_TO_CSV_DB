@@ -149,7 +149,7 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 
 ## Stage 5 — Export policies
 
-See [ARCHITECTURE_STAGE_5.md](ARCHITECTURE_STAGE_5.md) for the current versioned
+See [ETL_PWS_DOULEYEI_EL.md](ETL_PWS_DOULEYEI_EL.md) for the current versioned
 output contract. V1 output policies remain compatible. V2 defaults to `\N` for
 NULL, preserves empty text and formula-like strings, and supports explicit
 `encoding`, `null_value`, and `formula_policy` destination options. XLSX uses
@@ -183,5 +183,5 @@ permissions. Restart after changing `.env`.
 New single-source drafts use processing version 2. Saved pipelines and the shipped
 version-1 demo keep their explicit version. Default v2 CSV output represents NULL
 as `\N` and empty strings as empty fields; these remain distinct in processing.
-See [review implementation results](REVIEW_IMPLEMENTATION_RESULTS.md) for the
-bounded CONVERT addition, performance experiment and opt-in benchmark harness.
+See [ETL_PWS_DOULEYEI_EL.md](ETL_PWS_DOULEYEI_EL.md) for the bounded CONVERT
+addition, performance experiment and opt-in benchmark harness.

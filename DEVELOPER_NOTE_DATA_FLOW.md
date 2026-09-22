@@ -50,4 +50,4 @@ removed; no values were written back to SQL Server.
 - Keep Decimal precision; never round-trip through float.
 - Keep ERP names such as BRANDS in pipeline definitions/examples, not core logic.
 - No new refactor stage is authorized. Full policies and verification are in
-  [ARCHITECTURE_STAGE_5.md](ARCHITECTURE_STAGE_5.md).
+  [ETL_PWS_DOULEYEI_EL.md](ETL_PWS_DOULEYEI_EL.md).
