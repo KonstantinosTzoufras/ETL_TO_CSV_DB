@@ -170,6 +170,12 @@ $("template-load").onclick=()=>action(async()=>{loadTemplateEditor(await templat
 $("template-create").onclick=()=>action(async()=>{const value=await templateApi("create",{definition:blueprint()});loadTemplateEditor(value);await listTemplates(value);notify("Template created with immutable revision 1.");});
 $("template-revise").onclick=()=>action(async()=>{if(!templateEditorRevision)throw new Error("Load a revision before saving a new revision.");const value=await templateApi("revision",{id:templateEditorRevision.id,base_revision:templateEditorRevision.revision,definition:blueprint()});loadTemplateEditor(value);await listTemplates(value);notify("New revision saved. Existing copied drafts, pipelines and runs are unchanged.");});
 $("template-add-field").onclick=()=>{addTemplateField();dirty=true;};
+$("template-generate-fields").onclick=()=>action(async()=>{
+  if(!lastInspectedColumns.length)throw new Error("Inspect a database table above (Discover a source) first.");
+  const {fields}=await templateApi("from_columns",{columns:lastInspectedColumns});
+  fields.forEach(addTemplateField);
+  notify(`${fields.length} fields proposed from the table's own columns. Review each one - types and lengths are a guess from the catalog, not a decision.`);
+});
 $("template-fields").onclick=event=>{if(event.target.closest("[data-remove-target]")){event.target.closest(".template-field").remove();dirty=true;}};
 $("template-apply").onclick=()=>action(async()=>{
   if(templateDraft)throw new Error("A copied template is already pending. Finish it or start a new draft.");

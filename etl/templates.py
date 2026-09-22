@@ -255,12 +255,69 @@ def bind_template(template_copy, spec, bindings):
     return pipeline_to_dict(pipeline_from_dict(pipeline))
 
 
+# SQL Server's own type name (sys.columns/TYPE_NAME), lowercased, to the
+# pipeline's own target_type vocabulary. Anything not listed here defaults to
+# "string": an unrecognised type still needs a name and a guess, and a
+# proposal the operator has to loosen is safer than one that silently drops
+# the column or blocks Create outright.
+_SQL_TYPE_TO_TARGET = {
+    "char": "string", "varchar": "string", "text": "string", "xml": "string", "uniqueidentifier": "string",
+    "nchar": "string", "nvarchar": "string", "ntext": "string",
+    "tinyint": "int", "smallint": "int", "int": "int", "bigint": "int",
+    "decimal": "decimal", "numeric": "decimal", "money": "decimal", "smallmoney": "decimal",
+    "float": "float", "real": "float",
+    "bit": "bool",
+    "date": "date",
+    "datetime": "datetime", "datetime2": "datetime", "smalldatetime": "datetime", "datetimeoffset": "datetime",
+}
+# nchar/nvarchar/ntext store two bytes per character; sys.columns.max_length
+# is in bytes either way, so only these need converting back to characters.
+_WIDE_CHAR_TYPES = {"nchar", "nvarchar", "ntext"}
+
+
+def _field_from_column(entry):
+    """One template field, guessed from a database column's catalog entry.
+
+    A proposal, not a decision: this fills in exactly what 'Add target
+    field' would have produced by hand - the operator still reviews every
+    row, renames what they want and removes what they don't, before Create.
+    """
+    require(isinstance(entry, dict), "Column entry must be an object")
+    column = entry.get("column")
+    require(isinstance(column, dict) and isinstance(column.get("name"), str) and column["name"].strip(),
+            "Column entry needs a name")
+    declared = entry.get("declared_type")
+    target_type = _SQL_TYPE_TO_TARGET.get(declared.lower(), "string") if isinstance(declared, str) else "string"
+    max_length = None
+    if target_type == "string":
+        raw = entry.get("max_length_bytes")
+        if type(raw) is int and raw > 0:
+            max_length = raw // 2 if declared.lower() in _WIDE_CHAR_TYPES else raw
+    return {"output_name": column["name"], "target_type": target_type, "transforms": [],
+            "required": column.get("nullable") is False, "max_length": max_length, "lookup_required": False}
+
+
+def fields_from_columns(columns):
+    """Template fields proposed from a table's own columns, in catalog order.
+
+    Takes exactly what /api/discovery (columns operation) returns for a SQL
+    Server table: never a raw connection, schema or table name, so this stays
+    the same pure/no-I/O shape as the rest of the template machinery.
+    """
+    require(isinstance(columns, list) and columns, "At least one column is required")
+    require(len(columns) <= MAX_OUTPUT_COLUMNS, f"At most {MAX_OUTPUT_COLUMNS} columns are supported")
+    fields = [_field_from_column(entry) for entry in columns]
+    names = [field["output_name"].casefold() for field in fields]
+    require(len(names) == len(set(names)), "Source has duplicate column names; rename before generating fields")
+    return fields
+
+
 def dispatch(store, operation, body):
     allowed = {
         "list": set(), "read": {"id", "revision"}, "create": {"definition"},
         "revision": {"id", "base_revision", "definition"},
         "apply": {"id", "revision", "spec"}, "bind": {"template", "spec", "bindings"},
-        "match": {"template", "columns", "locked"},
+        "match": {"template", "columns", "locked"}, "from_columns": {"columns"},
     }
     require(operation in allowed, "Unknown template operation")
     keys(body, allowed[operation], "template request")
@@ -276,4 +333,6 @@ def dispatch(store, operation, body):
         return apply_template(store.read(body.get("id"), body.get("revision")), body.get("spec"))
     if operation == "match":
         return match_template(body.get("template"), body.get("columns"), body.get("locked"))
+    if operation == "from_columns":
+        return {"fields": fields_from_columns(body.get("columns"))}
     return bind_template(body.get("template"), body.get("spec"), body.get("bindings"))

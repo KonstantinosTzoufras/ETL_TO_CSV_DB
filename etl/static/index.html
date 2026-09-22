@@ -78,7 +78,8 @@
     <button id="template-load">Load revision into editor</button><button id="template-apply">Apply selected revision</button>
     <details><summary>Create or revise a template</summary><p id="template-editor-origin" class="hint">New template</p><p class="hint">Each target field is one column of the output file: a name, a type and its rules. It never records a source — that is chosen per pipeline, in step 4.</p>
       <div class="fields"><label class="grow">Template name<input id="template-name" maxlength="120"></label><label>Template processing version<select id="template-version"><option value="2">2 — conservative</option><option value="1">1 — legacy</option></select></label></div>
-      <div id="template-fields"></div><button id="template-add-field">Add target field</button><button id="template-create">Create new template</button><button id="template-revise">Save new revision</button>
+      <p class="hint">To start from a database table instead of typing every field: inspect it above under <b>Discover a source → Use this dataset</b>, then press <b>Generate fields from inspected table</b>. Each proposed field is a guess from the catalog (type, length, required) — review and adjust every row before saving.</p>
+      <div id="template-fields"></div><button id="template-add-field">Add target field</button><button id="template-generate-fields">Generate fields from inspected table</button><button id="template-create">Create new template</button><button id="template-revise">Save new revision</button>
     </details>
   </details>
   <section class="card" id="template-bindings" hidden><h2>Review mappings</h2><p id="template-copy-name"></p><p class="hint">Load a binding you saved earlier for this source, or propose the obvious name matches. Anything uncertain stays open, and nothing is written to the pipeline until you press Apply mappings.</p>

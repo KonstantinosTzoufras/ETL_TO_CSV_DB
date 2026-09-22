@@ -11,7 +11,7 @@ from etl.engine import execute
 from etl.models import Transform
 from etl.spec import ConfigError
 from etl.templates import (MappingTemplate, TemplateField, TemplateStore, apply_template,
-                           bind_template, template_from_dict, template_to_dict)
+                           bind_template, dispatch, fields_from_columns, template_from_dict, template_to_dict)
 
 
 def blueprint():
@@ -184,6 +184,77 @@ class TemplateTests(unittest.TestCase):
             cursor.execute.assert_called_once_with("SELECT * FROM [dbo].[AnyTable]")
             cursor.fetchall.assert_not_called()
         self.assertEqual(result["sample"][0].converted_values, {"Code": "003", "Name": "Name", "VAT": ""})
+
+
+def discovered(name, declared_type, max_length_bytes=None, nullable=None, native_type="str"):
+    """The shape /api/discovery (columns operation) actually returns."""
+    return {"column": {"name": name, "native_type": native_type, "nullable": nullable,
+                        "display_size": None, "internal_size": None, "precision": None, "scale": None},
+            "declared_type": declared_type, "max_length_bytes": max_length_bytes}
+
+
+class FieldsFromColumnsTests(unittest.TestCase):
+    def test_every_common_sql_type_maps_to_a_pipeline_target_type(self):
+        expectations = {"int": "int", "bigint": "int", "tinyint": "int", "decimal": "decimal", "money": "decimal",
+                        "float": "float", "real": "float", "bit": "bool", "date": "date", "datetime2": "datetime",
+                        "varchar": "string", "nvarchar": "string", "uniqueidentifier": "string"}
+        for sql_type, target in expectations.items():
+            with self.subTest(sql_type=sql_type):
+                fields = fields_from_columns([discovered("c", sql_type)])
+                self.assertEqual(fields[0]["target_type"], target)
+
+    def test_an_unrecognised_declared_type_still_proposes_a_string(self):
+        self.assertEqual(fields_from_columns([discovered("c", "sql_variant")])[0]["target_type"], "string")
+        self.assertEqual(fields_from_columns([discovered("c", None)])[0]["target_type"], "string")
+
+    def test_nvarchar_length_is_characters_not_bytes(self):
+        fields = fields_from_columns([discovered("code", "nvarchar", max_length_bytes=40)])
+        self.assertEqual(fields[0]["max_length"], 20)
+
+    def test_varchar_length_is_used_as_is(self):
+        fields = fields_from_columns([discovered("code", "varchar", max_length_bytes=40)])
+        self.assertEqual(fields[0]["max_length"], 40)
+
+    def test_max_length_minus_one_means_unbounded_not_zero(self):
+        fields = fields_from_columns([discovered("note", "nvarchar", max_length_bytes=-1)])
+        self.assertIsNone(fields[0]["max_length"])
+
+    def test_a_non_string_type_never_receives_a_max_length(self):
+        fields = fields_from_columns([discovered("amount", "int", max_length_bytes=4)])
+        self.assertIsNone(fields[0]["max_length"])
+
+    def test_not_nullable_becomes_required_everything_else_does_not(self):
+        self.assertTrue(fields_from_columns([discovered("c", "int", nullable=False)])[0]["required"])
+        for nullable in (True, None):
+            with self.subTest(nullable=nullable):
+                self.assertFalse(fields_from_columns([discovered("c", "int", nullable=nullable)])[0]["required"])
+
+    def test_catalog_order_and_no_transforms_or_lookup_are_proposed(self):
+        fields = fields_from_columns([discovered("b", "int"), discovered("a", "int")])
+        self.assertEqual([f["output_name"] for f in fields], ["b", "a"])
+        self.assertEqual(fields[0]["transforms"], [])
+        self.assertFalse(fields[0]["lookup_required"])
+
+    def test_every_proposed_field_survives_the_templates_own_validation(self):
+        fields = fields_from_columns([discovered("code", "nvarchar", 40, nullable=False),
+                                      discovered("amount", "decimal", nullable=True)])
+        template_from_dict({"id": "a" * 32, "name": "x", "revision": 1, "format_version": 1,
+                            "processing_version": 2, "fields": fields})
+
+    def test_an_empty_or_oversized_column_list_is_refused(self):
+        with self.assertRaises(ConfigError):
+            fields_from_columns([])
+        with self.assertRaises(ConfigError):
+            fields_from_columns([discovered(f"c{i}", "int") for i in range(5000)])
+
+    def test_duplicate_column_names_are_refused_rather_than_silently_collapsed(self):
+        with self.assertRaises(ConfigError):
+            fields_from_columns([discovered("Code", "int"), discovered("code", "int")])
+
+    def test_dispatch_exposes_the_same_operation(self):
+        result = dispatch(None, "from_columns", {"columns": [discovered("code", "int", nullable=False)]})
+        self.assertEqual(result, {"fields": [{"output_name": "code", "target_type": "int", "transforms": [],
+                                              "required": True, "max_length": None, "lookup_required": False}]})
 
 
 if __name__ == "__main__":

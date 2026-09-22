@@ -311,6 +311,12 @@ $("run-diagnostics-close").onclick=()=>{diagnosticGeneration++;$("run-diagnostic
 
 // Discovery edits only the source definition. Processing remains in /api/preview.
 let discoveryGeneration=0, discoveryNamespace=[], discoveryFolders=[], discoveryDatasets=[], discoverySource=null, discoveryColumns=[];
+// The full column catalog from the last successful inspection, independent
+// of discoverySource: applying a dataset to the pipeline (Use this dataset)
+// re-renders the source fields and resets the discovery panel through the
+// usual sourceEdited path, but a template field generated from what was just
+// inspected should not disappear because of that.
+let lastInspectedColumns=[];
 let foldersCursor=null, datasetsCursor=null;
 function resetDiscovery() {
   discoveryGeneration++;
@@ -371,6 +377,7 @@ async function selectDiscovery(locator) {
   if(generation!==discoveryGeneration)return;
   discoverySource=configured;
   discoveryColumns=columns.map(m=>m.column.name);
+  lastInspectedColumns=columns;
   $("discovery-name").textContent=[...dataset.namespace,dataset.name].join(" / ");
   const known=value=>value===null?"Unknown":String(value);
   $("discovery-metadata").innerHTML=`<table><thead><tr><th>Position</th><th>Name</th><th>Read type</th><th>Declared type</th><th>Nullable</th><th>Precision</th><th>Scale</th><th>Max bytes (−1 = max)</th></tr></thead><tbody>${columns.map((m,i)=>`<tr>${[i+1,m.column.name,m.column.native_type,m.declared_type,m.column.nullable,m.column.precision,m.column.scale,m.max_length_bytes].map(v=>`<td>${esc(known(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
