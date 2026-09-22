@@ -876,6 +876,14 @@ footer {
 #ordered-editor button {
   margin: 6px 4px 6px 0;
 }
+/* Sits directly between two labels in the one-line name/connection/policy
+   row (see #ordered-editor > .fields:first-of-type above); the row's own
+   gap already spaces it, so its own margin would just add to that.
+   #ordered-editor button (id+element) outranks a bare id, so this needs the
+   same shape to actually win. */
+#ordered-editor button#ordered-connections {
+  margin: 0;
+}
 .ordered-run {
   border-bottom: 1px solid #dfe7e1;
   padding: 16px 0;
