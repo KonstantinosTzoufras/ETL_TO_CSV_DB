@@ -126,7 +126,13 @@ class SqlServerOutputWriter:
     writers, so it always runs - success or failure - and decides which of
     those it was from whether an exception is unwinding through it.
     """
-    BATCH = 1000
+    # Measured against the real destination server: 1000 gave ~2,200 rows/sec,
+    # 5000 ~4,500, 20000 ~5,900 - each executemany pays a largely fixed
+    # per-round-trip cost, so fewer, larger round trips win. The whole write is
+    # already one transaction regardless of batch size (committed only in
+    # finish(), for the shadow-swap), so a bigger batch adds no lock-duration
+    # risk beyond what already exists - only client-side memory for one batch.
+    BATCH = 20000
 
     def __init__(self, columns, destination, pipeline_id, pipeline_name, claim_table):
         require(isinstance(pipeline_id, str) and pipeline_id, "Database export needs a saved pipeline; save it first")
