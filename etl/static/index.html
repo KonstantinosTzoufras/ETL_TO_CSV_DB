@@ -5,7 +5,11 @@
 <aside>
   <div class="brand"><span class="logo">E</span><div>ETL Studio<small>LOCAL WORKSPACE</small></div></div>
   <button id="new" class="primary wide">＋ New pipeline</button>
-  <details><summary>Advanced exports</summary><button id="new-ordered" class="wide">New ordered query exports</button><p class="hint">Multiple independent SQL queries, one output file per step.</p></details>
+  <details><summary>Advanced exports</summary>
+    <p class="hint">For when you need <b>several</b> SQL query results out of <b>one run</b>, from the <b>same</b> approved connection — for example <code>customers.csv</code>, <code>orders.csv</code> and <code>balances.csv</code> together. Each step is its own SELECT, its own field mappings and its own output file.</p>
+    <p class="hint">One source, one output file? You don't need this — use <b>＋ New pipeline</b> instead.</p>
+    <button id="new-ordered" class="wide">New ordered query exports</button>
+  </details>
   <p class="eyebrow">YOUR PIPELINES</p><nav id="pipelines" aria-label="Saved pipelines"><p class="muted">Loading…</p></nav>
   <div class="aside-foot"><span class="dot"></span> Runs on your computer<small>Python edition · v0.1</small></div>
 </aside>
