@@ -26,22 +26,30 @@ REFERENCE = "ETL_SQL_MAIN"
 
 class FakeCursor:
     """Records every statement in order; can be told to fail on demand."""
-    def __init__(self, fail_on=None):
+    def __init__(self, fail_on=None, error=None):
         self.statements = []
         self.executed_batches = []
         self.fail_on = fail_on or (lambda sql: False)
+        self.error = error or FAKE_PYODBC.Error
         self.fast_executemany = False
+        # A real driver can leave a cursor unable to run anything else once a
+        # statement on it has failed mid-flight; this reproduces that so a
+        # cleanup step can be shown to need a fresh cursor rather than reusing
+        # the one the failure happened on.
+        self.broken = False
 
     def execute(self, sql, *args):
         self.statements.append(sql)
-        if self.fail_on(sql):
-            raise FAKE_PYODBC.Error("simulated failure")
+        if self.broken or self.fail_on(sql):
+            self.broken = True
+            raise self.error("simulated failure")
         return self
 
     def executemany(self, sql, rows):
         self.statements.append(sql)
-        if self.fail_on(sql):
-            raise FAKE_PYODBC.Error("simulated failure")
+        if self.broken or self.fail_on(sql):
+            self.broken = True
+            raise self.error("simulated failure")
         self.executed_batches.append((sql, list(rows)))
 
     def close(self):
@@ -59,12 +67,44 @@ class FakePyodbc:
 FAKE_PYODBC = FakePyodbc()
 
 
+class _CursorLog:
+    """Every cursor a fake connection hands out, as if it were one cursor.
+
+    finish()'s cleanup path opens a fresh cursor rather than reusing one a
+    failure happened on (see fake_connection's `error` parameter for why).
+    Tests that only ever cause one cursor to be created see no difference;
+    tests that exercise the fresh-cursor cleanup can still read `.statements`
+    as the combined, in-order record of everything any cursor ran.
+    """
+    def __init__(self):
+        self.cursors = []
+
+    def _make(self, fail_on, error):
+        cursor = FakeCursor(fail_on=fail_on, error=error)
+        self.cursors.append(cursor)
+        return cursor
+
+    @property
+    def statements(self):
+        return [statement for cursor in self.cursors for statement in cursor.statements]
+
+    @property
+    def executed_batches(self):
+        return [batch for cursor in self.cursors for batch in cursor.executed_batches]
+
+
 @contextmanager
-def fake_connection(fail_on=None):
-    """Patches etl.db_export's own `import pyodbc` and pyodbc.connect."""
-    cursor = FakeCursor(fail_on=fail_on)
+def fake_connection(fail_on=None, error=None):
+    """Patches etl.db_export's own `import pyodbc` and pyodbc.connect.
+
+    `error` is the exception class raised where `fail_on` matches - defaults
+    to the fake pyodbc.Error, but a test can pass MemoryError (or anything
+    else pyodbc.Error's `except` clauses don't catch) to prove the module
+    still cleans up rather than depending on that one exception hierarchy.
+    """
+    log = _CursorLog()
     connection = MagicMock()
-    connection.cursor.return_value = cursor
+    connection.cursor.side_effect = lambda: log._make(fail_on, error)
     commits, rollbacks = [], []
     connection.commit.side_effect = lambda: commits.append(True)
     connection.rollback.side_effect = lambda: rollbacks.append(True)
@@ -73,7 +113,7 @@ def fake_connection(fail_on=None):
     module.connect.return_value = connection
     with patch.dict("sys.modules", {"pyodbc": module}), \
          patch.dict(os.environ, {REFERENCE: "NEVER_PRINT_CREDENTIALS", "ETL_EXPORT_CONNECTIONS": POLICY}):
-        yield cursor, commits, rollbacks
+        yield log, commits, rollbacks
 
 
 def columns():
@@ -240,6 +280,67 @@ class WriterLifecycleTests(unittest.TestCase):
             statements_after_first = len(cursor.statements)
             writer.finish()
             self.assertEqual(len(cursor.statements), statements_after_first, "a second finish() must do nothing")
+
+    def test_fast_executemany_is_disabled_for_an_unbounded_string_column(self):
+        # NVARCHAR(MAX) with fast_executemany batching real driver memory in
+        # a way that scales with batch size, not with the actual data - the
+        # incident this guards against. Bounded columns have no such column.
+        unbounded = [{"name": "code", "type": "string"}]
+        with fake_connection() as (log, commits, rollbacks):
+            SqlServerOutputWriter(unbounded, self.destination, "p1", "Notes", self.store.claim_export_table)
+            self.assertFalse(log.cursors[0].fast_executemany)
+
+    def test_fast_executemany_stays_on_when_every_string_is_bounded(self):
+        with fake_connection() as (log, commits, rollbacks):
+            self.make()
+            self.assertTrue(log.cursors[0].fast_executemany)
+
+    def test_cleanup_after_an_exception_pyodbc_never_raises_uses_a_fresh_cursor(self):
+        # The real incident: a MemoryError mid-executemany is not a
+        # pyodbc.Error, so it reaches finish() unconverted - and the cursor it
+        # happened on was left unable to run anything else. Cleanup must not
+        # depend on that same cursor still working.
+        with fake_connection(fail_on=lambda sql: "INSERT INTO" in sql, error=MemoryError) as (log, commits, rollbacks):
+            writer = self.make()
+            with self.assertRaises(MemoryError):
+                try:
+                    writer.write_result(_result("A", Decimal("1.00"), True))
+                    writer._flush()
+                finally:
+                    writer.finish()
+            self.assertEqual(len(log.cursors), 2, "cleanup must open its own cursor rather than reuse the broken one")
+            self.assertTrue(any("DROP TABLE" in s for s in log.cursors[1].statements),
+                             "the shadow table must still be dropped on a fresh cursor")
+            self.assertTrue(rollbacks, "the failed insert transaction must still be rolled back")
+
+    def test_a_cleanup_failure_is_logged_not_silently_lost(self):
+        # If even the fresh cleanup cursor's DROP fails, the original
+        # exception must still be the one that surfaces - but the cleanup
+        # failure must not vanish without a trace, or an orphaned table
+        # becomes invisible. The first DROP (inside __init__, clearing any
+        # leftover shadow before CREATE) must still succeed, or construction
+        # itself would fail before there is anything to test.
+        drops_seen = {"count": 0}
+
+        def fail_on(sql):
+            if "INSERT INTO" in sql:
+                return True
+            if "DROP TABLE" in sql:
+                drops_seen["count"] += 1
+                return drops_seen["count"] > 1
+            return False
+
+        with fake_connection(fail_on=fail_on, error=MemoryError) as (log, commits, rollbacks):
+            writer = self.make()
+            with self.assertLogs(level="ERROR") as captured:
+                with self.assertRaises(MemoryError):
+                    try:
+                        writer.write_result(_result("A", Decimal("1.00"), True))
+                        writer._flush()
+                    finally:
+                        writer.finish()
+            self.assertTrue(any("shadow" in message.lower() or "drop" in message.lower()
+                                 for message in captured.output))
 
     def test_rows_written_is_accurate_before_the_final_partial_batch_flushes(self):
         with fake_connection() as (cursor, commits, rollbacks):

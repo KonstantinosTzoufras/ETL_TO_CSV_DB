@@ -14,6 +14,7 @@ point - mid-write, or before writing a single row - never leaves a half-built
 table behind and never disturbs a previously successful one.
 """
 import json
+import logging
 import os
 import re
 import sys
@@ -157,10 +158,18 @@ class SqlServerOutputWriter:
         self.connection = pyodbc.connect(connection_string, timeout=10, autocommit=False)
         self.connection.timeout = policy["max_timeout_seconds"]
         self.cursor = self.connection.cursor()
-        try:
-            self.cursor.fast_executemany = True
-        except Exception:
-            pass
+        # fast_executemany asks the driver to bind a whole batch's parameters
+        # at once. For an unbounded NVARCHAR(MAX)/VARCHAR(MAX) column this is a
+        # known pyodbc failure mode: the driver sizes its per-row buffer for
+        # the worst case rather than the actual value, and a large batch times
+        # an unbounded column can exhaust memory outright (observed: a
+        # MemoryError mid-batch on a column with no max_length). Bounded
+        # columns have no such worst case, so they keep the fast path.
+        if all(c.get("type", "string") != "string" or c.get("max_length") for c in columns):
+            try:
+                self.cursor.fast_executemany = True
+            except Exception:
+                pass
         try:
             schema_id, shadow_id = identifier(self.schema), identifier(self.shadow_name)
             self.cursor.execute(f"IF OBJECT_ID({_sql_string(self.schema + '.' + self.shadow_name)}) IS NOT NULL DROP TABLE {schema_id}.{shadow_id}")
@@ -216,10 +225,21 @@ class SqlServerOutputWriter:
         if unwinding:
             # The failure already happened; do not let cleanup mask it with a
             # second exception, and never touch the previously successful table.
+            # A fresh cursor, not the one the failure happened on: a batch that
+            # died mid-executemany can leave its cursor unable to run anything
+            # else, and reusing it here would just repeat that failure.
             try:
-                self.cursor.execute(f"IF OBJECT_ID({_sql_string(self.schema + '.' + self.shadow_name)}) IS NOT NULL DROP TABLE {schema_id}.{shadow_id}")
+                self.connection.rollback()
+                cleanup_cursor = self.connection.cursor()
+                cleanup_cursor.execute(f"IF OBJECT_ID({_sql_string(self.schema + '.' + self.shadow_name)}) IS NOT NULL DROP TABLE {schema_id}.{shadow_id}")
+                self.connection.commit()
+                cleanup_cursor.close()
             except Exception:
-                pass
+                # Still don't let cleanup mask the original failure - but a
+                # failed cleanup leaves a table behind, so it must be visible
+                # somewhere rather than vanishing along with the exception.
+                logging.getLogger(__name__).exception(
+                    "Database export cleanup failed to drop shadow table %s.%s", self.schema, self.shadow_name)
             self._close(commit=False)
             return
         try:
