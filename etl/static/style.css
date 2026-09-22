@@ -318,6 +318,17 @@ button:disabled {
 .fields .hint {
   margin: 0;
 }
+/* The pipeline-name row in the ordered editor has exactly four items that
+   belong together at a glance (name, shared connection, its refresh, the
+   failure policy) - wrapping splits it into a lone name field over a second
+   row of controls that then read as unrelated to it. Shrinking instead of
+   wrapping keeps it one line at any width this app supports down to. */
+#ordered-editor > .fields:first-of-type {
+  flex-wrap: nowrap;
+}
+#ordered-editor > .fields:first-of-type > label {
+  min-width: 0;
+}
 
 /* TABLES AND THE MAPPING GRID
    ---------------------------
@@ -568,6 +579,15 @@ footer {
   }
   .flow {
     gap: 15px;
+  }
+  /* Shrinking four items to fit a narrower row squeezes label text onto two
+     lines instead - no better than the wrap it was meant to avoid. Below
+     this width, wrapping to a clean second row reads better than a squeeze. */
+  #ordered-editor > .fields:first-of-type {
+    flex-wrap: wrap;
+  }
+  #ordered-editor > .fields:first-of-type > label {
+    min-width: 120px;
   }
 }
 @media (max-width: 720px) {
