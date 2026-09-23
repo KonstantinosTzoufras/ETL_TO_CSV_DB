@@ -50,7 +50,12 @@ class ExporterTests(unittest.TestCase):
         self.assertTrue(path.read_bytes().startswith(b"\xef\xbb\xbf"))
         rows = self.csv_rows(path)
         self.assertEqual(rows[0], list(values))
-        self.assertEqual(rows[1], ["\\N", "", "003", "Αθήνα", " \t ", "a;b", 'a"b',
+        # NULL renders as a plain empty field by default (collapsed with an
+        # actual empty string): SQL Server's own bulk-import tools have no
+        # \N convention, so that would land as literal, fatal text the
+        # moment the destination column isn't a string. See the dedicated
+        # null_value tests below for the opt-in, distinguishable token.
+        self.assertEqual(rows[1], ["", "", "003", "Αθήνα", " \t ", "a;b", 'a"b',
                                   "\r\nπρώτη\nδεύτερη\rτέλος", "12345678901234567890.1234500", "9007199254740993",
                                   "true", "false", "2024-02-29", "2024-02-29T12:34:56.123000+00:00", "12:34:56",
                                   "base64:AP8=", "00000000-0000-0000-0000-000000000003"])
@@ -94,7 +99,7 @@ class ExporterTests(unittest.TestCase):
                             "number": Decimal("-123.4500"), "boolean": False}, version=1)
         self.assertEqual(path.read_bytes(), b"\xef\xbb\xbfnull;empty;code;formula;number;boolean\r\n;;003;'=1+1;-123.4500;false\r\n")
 
-    def test_v2_xlsx_uses_text_cells_with_distinct_null_and_empty(self):
+    def test_v2_xlsx_null_collapses_into_empty_by_default(self):
         from openpyxl import load_workbook
         values = {"null": None, "empty": "", "code": "003", "decimal": Decimal("12345678901234567890.1234500"),
                   "integer": 9007199254740993, "formula": "=1+1", "boolean": True, "date": date(2024, 2, 29),
@@ -103,9 +108,22 @@ class ExporterTests(unittest.TestCase):
         workbook = load_workbook(path, read_only=True)
         try:
             cells = list(workbook.active.rows)[1]
-            self.assertEqual([c.value for c in cells], ["\\N", None, "003", "12345678901234567890.1234500",
+            self.assertEqual([c.value for c in cells], [None, None, "003", "12345678901234567890.1234500",
                              "9007199254740993", "=1+1", "true", "2024-02-29", "2024-02-29T01:02:03", "Αθήνα", "α\r\nβ\nγ\rδ", "   "])
-            self.assertTrue(all(c.data_type == "s" for n, c in enumerate(cells) if n != 1))
+            self.assertTrue(all(c.data_type == "s" for n, c in enumerate(cells) if n > 1))
+            self.assertEqual(cells[0].data_type, "inlineStr")
+            self.assertEqual(cells[1].data_type, "inlineStr")
+        finally:
+            workbook.close()
+
+    def test_v2_xlsx_explicit_null_value_stays_distinct_from_empty(self):
+        from openpyxl import load_workbook
+        path = self.export({"null": None, "empty": ""}, kind="xlsx", null_value="\\N")
+        workbook = load_workbook(path, read_only=True)
+        try:
+            cells = list(workbook.active.rows)[1]
+            self.assertEqual([c.value for c in cells], ["\\N", None])
+            self.assertEqual(cells[0].data_type, "s")
             self.assertEqual(cells[1].data_type, "inlineStr")
         finally:
             workbook.close()
@@ -132,7 +150,7 @@ class ExporterTests(unittest.TestCase):
         with self.assertRaises(IllegalCharacterError):
             self.export({"value": "a\x00b"}, kind="xlsx")
         with self.assertRaisesRegex(ConfigError, "collides"):
-            self.export({"value": "\\N"}, kind="xlsx")
+            self.export({"value": "\\N"}, kind="xlsx", null_value="\\N")
 
     def test_decimal_exponents_and_nonfinite_or_unknown_types(self):
         self.assertEqual(self.csv_rows(self.export({"d": Decimal("1.2300E+20")}))[1], ["1.2300E+20"])

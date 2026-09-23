@@ -19,8 +19,9 @@ remains available for diagnosis. Preview and full execution share the processor.
 
 This example was read from the real SQL Server during the Stage-5 walkthrough.
 The v2 mapping used the target types below, **no transforms**, and no additional
-required, max-length or lookup rules. CSV used the default v2 NULL token `\N`
-and formula policy `preserve`.
+required, max-length or lookup rules. CSV used an explicit `\N` NULL token and
+formula policy `preserve`. (The *default* NULL token changed after this
+walkthrough - see the NULL row's note below.)
 
 | Field / target type | Original value | Transformed value | Converted value | Validation result | Exported CSV field |
 | --- | --- | --- | --- | --- | --- |
@@ -32,8 +33,14 @@ and formula policy `preserve`.
 
 The driver supplied Decimal and None directly. The exporter alone rendered them
 as `0.0000` and `\N`. A literal empty string would instead produce an empty CSV
-field. Values in the three stage maps happen to be equal in this example because
-no transform was requested and the explicit target conversions preserved them.
+field. **Default `null_value` is now `""` (a plain empty field), not `\N`**:
+SQL Server's own bulk-import tools have no `\N` convention, so a NULL written
+that way used to land as literal, fatal text the moment a destination column
+wasn't a string. `\N` above is what this example got by explicitly asking for
+it - the default output no longer distinguishes NULL from empty text unless a
+pipeline sets `null_value` itself. Values in the three stage maps happen to be
+equal in this example because no transform was requested and the explicit
+target conversions preserved them.
 
 `RowResult.valid` was true and `errors` was empty. This confirms the configured
 mapping, not every possible business rule for a product. SourceRow.number was 1

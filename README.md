@@ -150,8 +150,12 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 ## Stage 5 — Export policies
 
 See [ETL_PWS_DOULEYEI_EL.md](ETL_PWS_DOULEYEI_EL.md) for the current versioned
-output contract. V1 output policies remain compatible. V2 defaults to `\N` for
-NULL, preserves empty text and formula-like strings, and supports explicit
+output contract. V1 output policies remain compatible. V2 defaults NULL to a
+plain empty field (collapsed with an actual empty string, since SQL Server's
+own bulk-import tools have no `\N` convention and would otherwise import it
+as literal, fatal text on a non-string column); an explicit `null_value` such
+as `\N` opts back into a distinguishable token when the destination needs one.
+V2 preserves empty text and formula-like strings, and supports explicit
 `encoding`, `null_value`, and `formula_policy` destination options. XLSX uses
 text cells and the lxml backend to preserve identifiers, decimals and line endings.
 Run `pip install -r requirements.txt` and restart an existing app process.
@@ -176,12 +180,21 @@ ODBC driver; otherwise Driver 18 is preferred, with Driver 17 as fallback.
 `DB_ENCRYPT` defaults to `yes`; `DB_TRUST_SERVER_CERTIFICATE` defaults to `no`.
 Set certificate trust explicitly only when appropriate for the intended server.
 Credentials stay on the server; the UI lists reference names only.
+
+Set `DB_TRUSTED_CONNECTION=yes` instead of `DB_USER`/`DB_PASS` for a database
+that authenticates by the Windows identity running this process (Integrated
+Security), rather than a SQL login. `DB_USER`/`DB_PASS` must then be absent -
+setting both a SQL login and `DB_TRUSTED_CONNECTION=yes` is refused rather
+than silently picking one.
+
 This configuration does not grant query-source approval or assert database
 permissions. Restart after changing `.env`.
 # New pipeline defaults
 
 New single-source drafts use processing version 2. Saved pipelines and the shipped
-version-1 demo keep their explicit version. Default v2 CSV output represents NULL
-as `\N` and empty strings as empty fields; these remain distinct in processing.
+version-1 demo keep their explicit version. NULL and empty text remain distinct
+throughout processing regardless of export policy; only the default output file
+collapses them into the same plain empty field (set `null_value` explicitly for
+a distinguishable token).
 See [ETL_PWS_DOULEYEI_EL.md](ETL_PWS_DOULEYEI_EL.md) for the bounded CONVERT
 addition, performance experiment and opt-in benchmark harness.

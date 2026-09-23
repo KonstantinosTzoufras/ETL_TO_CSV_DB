@@ -67,7 +67,14 @@ class OutputWriter:
         self.path = directory / ("valid." + self.kind)
         self.names = tuple(names)
         self.encoding = destination.get("encoding", "utf-8-sig")
-        self.null_value = destination.get("null_value", "" if version == 1 else "\\N")
+        # SQL Server's own bulk-import tools have no \N convention (that is
+        # MySQL's), so a NULL written that way lands as a literal 2-character
+        # string - fatal the moment the destination column isn't text. An
+        # empty field is what every downstream tool already treats as NULL by
+        # default, so that is the default here too; a caller that actually
+        # wants NULL and empty text kept distinct in the file sets an
+        # explicit null_value (e.g. "\\N") itself.
+        self.null_value = destination.get("null_value", "")
         self.formula_policy = destination.get("formula_policy", "apostrophe" if version == 1 else "preserve")
         self.protected_null = self._protect(self.null_value)
         self.workbook = None
