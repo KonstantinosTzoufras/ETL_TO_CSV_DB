@@ -1054,7 +1054,7 @@ header h1 {
   max-height: 460px;
 }
 #mapping-card {
-  max-height: 620px;
+  max-height: 900px; /* leaves room for ~7 mapping rows in the table below */
 }
 .section-head {
   flex: 0 0 auto;
@@ -1087,7 +1087,7 @@ header h1 {
    mapping scroller, so off-screen rows cannot extend the document height. */
 #mapping-card .table-scroll {
   position: relative;
-  max-height: 360px;
+  max-height: 540px; /* ~7 mapping rows before scrolling, measured against real row height */
   overflow: auto;
   border: 1px solid #dfe7e1;
   border-radius: 8px;

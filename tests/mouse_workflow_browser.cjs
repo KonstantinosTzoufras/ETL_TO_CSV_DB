@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
   await page.locator('#columns-add-all').waitFor();await page.locator('#columns-add-all').click();
   await page.waitForFunction(()=>document.querySelectorAll('#columns tr').length===300);
   const geometry=await page.evaluate(()=>({source:document.querySelector('#source-card').offsetHeight,mapping:document.querySelector('#mapping-card').offsetHeight,table:document.querySelector('#mapping-card .table-scroll').clientHeight,scroll:document.querySelector('#mapping-card .table-scroll').scrollHeight,bar:document.querySelector('.action-bar').getBoundingClientRect().bottom,viewport:innerHeight,resultsLast:!!(document.querySelector('#export-card').compareDocumentPosition(document.querySelector('#results-area'))&Node.DOCUMENT_POSITION_FOLLOWING)}));
-  assert.ok(geometry.source<=460);assert.ok(geometry.mapping<=620);assert.ok(geometry.table<=360 && geometry.scroll>geometry.table);assert.equal(geometry.bar,geometry.viewport);assert.ok(geometry.resultsLast);
+  assert.ok(geometry.source<=460);assert.ok(geometry.mapping<=900);assert.ok(geometry.table<=540 && geometry.scroll>geometry.table);assert.equal(geometry.bar,geometry.viewport);assert.ok(geometry.resultsLast);
   const bottomGap=await page.evaluate(()=>document.documentElement.scrollHeight-(document.querySelector('footer').getBoundingClientRect().bottom+scrollY));
   assert.ok(bottomGap<220,`No hidden mapping controls extending past footer: ${bottomGap}px`);
   await page.locator('[data-section-link=mapping-card]').click();
