@@ -220,6 +220,15 @@ class SpecTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             validate(self.spec({"kind": "sqlserver", "connection_env": "not-a-reference"}))
 
+    def test_an_explicit_table_name_validates(self):
+        validate(self.spec({"kind": "sqlserver", "connection_env": "ETL_SQL_MAIN", "table": "customers_clean"}))
+
+    def test_an_explicit_table_name_must_be_a_nonempty_bounded_string(self):
+        for table in ("", "   ", "x" * 101, 123, None):
+            with self.subTest(table=table):
+                with self.assertRaises(ConfigError):
+                    validate(self.spec({"kind": "sqlserver", "connection_env": "ETL_SQL_MAIN", "table": table}))
+
 
 class WriterLifecycleTests(unittest.TestCase):
     def setUp(self):
@@ -228,8 +237,18 @@ class WriterLifecycleTests(unittest.TestCase):
         self.store = Store(Path(self.temp.name) / "state.sqlite3")
         self.destination = {"kind": "sqlserver", "connection_env": "ETL_SQL_MAIN"}
 
-    def make(self, pipeline_id="p1", name="Customers"):
-        return SqlServerOutputWriter(columns(), self.destination, pipeline_id, name, self.store.claim_export_table)
+    def make(self, pipeline_id="p1", name="Customers", destination=None):
+        return SqlServerOutputWriter(columns(), destination or self.destination, pipeline_id, name, self.store.claim_export_table)
+
+    def test_an_explicit_table_name_overrides_the_pipeline_name_default(self):
+        with fake_connection() as (cursor, commits, rollbacks):
+            writer = self.make(name="Customers", destination={**self.destination, "table": "customers_clean"})
+            self.assertEqual(writer.table_name, "z0_customers_clean")
+
+    def test_without_an_explicit_table_name_the_pipeline_name_is_still_used(self):
+        with fake_connection() as (cursor, commits, rollbacks):
+            writer = self.make(name="Customers")
+            self.assertEqual(writer.table_name, "z0_customers")
 
     def test_a_successful_run_drops_the_shadow_and_renames_it_into_place(self):
         with fake_connection() as (cursor, commits, rollbacks):

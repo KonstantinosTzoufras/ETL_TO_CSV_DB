@@ -149,7 +149,10 @@ class SqlServerOutputWriter:
         require(bool(connection_string), f"Set environment variable {connection_env} before starting ETL")
         self.names = [column["name"] for column in columns]
         self.types = {column["name"]: column.get("type", "string") for column in columns}
-        self.table_name = claim_table(pipeline_id, table_name_for(pipeline_name))
+        # An explicit table name is still routed through the same sanitizer as
+        # the pipeline-name default, and through the same permanent claim: the
+        # first successful run decides it, later edits here have no effect.
+        self.table_name = claim_table(pipeline_id, table_name_for(destination.get("table") or pipeline_name))
         self.shadow_name = shadow_name_for(pipeline_id)
         self._batch = []
         self._rows = 0

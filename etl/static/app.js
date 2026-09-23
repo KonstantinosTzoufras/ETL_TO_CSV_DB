@@ -55,7 +55,9 @@ function read(options={}) {
   // for it server-side - build it as its own small shape, not a CSV/XLSX one
   // with fields quietly left over from whatever format was picked before.
   const destination=$("format").value==="sqlserver"
-    ?{kind:"sqlserver",connection_env:$("export-connection").value}
+    ?(()=>{const d={kind:"sqlserver",connection_env:$("export-connection").value};
+           if($("export-table").value.trim())d.table=$("export-table").value.trim();
+           return d;})()
     :(()=>{const d={...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value};
             if($("split-by").value)d.split_by=$("split-by").value;else delete d.split_by;
             // encoding is a v2-only destination option; v1 rejects the key outright.
@@ -78,6 +80,7 @@ function toggleExportFields(){
   document.querySelectorAll("#export-card .file-format-only").forEach(el=>el.hidden=isDb);
   $("export-connection-field").hidden=!isDb;
   $("export-connections").hidden=!isDb;
+  $("export-table-field").hidden=!isDb;
   $("export-table-hint").hidden=!isDb;
   // Choosing "Database table" means this list is needed right away; loading
   // it then, once, saves the separate click every time. The button stays for
@@ -127,6 +130,7 @@ function render() {
     if(wanted && ![...$("export-connection").options].some(o=>o.value===wanted))$("export-connection").add(new Option(wanted+" (not yet refreshed)",wanted));
     $("export-connection").value=wanted||"";
   }
+  $("export-table").value=definition.destination.table||"";
   toggleExportFields();
   $("processing-note").textContent=definition.version===2?"Version 2: NULL and empty string are distinct. Transforms run in the order entered; empty_to_null is explicit.":"Version 1 (legacy): optional empty strings become NULL. Saved pipeline processing behavior is preserved.";
   if(typeof renderQuery==="function")renderQuery(s);

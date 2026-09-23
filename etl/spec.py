@@ -61,9 +61,12 @@ def destination_spec(destination, version):
         # A separate, deliberately small shape: no delimiter/encoding/null_value
         # concepts apply to a table, and split_by is refused by omission - one
         # pipeline claims one table, not several under a moving name.
-        keys(destination, {"kind", "connection_env"}, "destination")
+        keys(destination, {"kind", "connection_env", "table"}, "destination")
         require(isinstance(destination.get("connection_env"), str) and re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", destination["connection_env"]),
                 "Connection variable must start with ETL_SQL_")
+        if "table" in destination:
+            require(isinstance(destination["table"], str) and destination["table"].strip() and len(destination["table"]) <= 100,
+                    "table must be a non-empty string of at most 100 characters")
         return
     allowed = {"kind", "delimiter", "split_by"}
     if version == 2:

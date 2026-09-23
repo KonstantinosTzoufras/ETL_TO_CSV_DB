@@ -626,15 +626,24 @@
           ><button id="export-connections" hidden>
             Refresh export connections
           </button>
+          <label id="export-table-field" hidden
+            >Table name (optional)<input
+              id="export-table"
+              maxlength="100"
+              placeholder="Defaults to the pipeline name"
+          /></label>
           <p class="hint grow file-format-only">
             Valid records → output file<br />Rejected records → CSV with
             field-level reasons
           </p>
           <p class="hint grow" id="export-table-hint" hidden>
-            Writes into one table, named after this pipeline, on the approved
-            connection above. A run either replaces that table completely or
-            leaves the previous one untouched — never a half-written one.
-            Requires the pipeline to be saved first.
+            Writes into one table, named after this pipeline unless you set an
+            explicit table name above, on the approved connection above. The
+            first successful run fixes the name permanently, even if you
+            rename the pipeline or the table field afterward. A run either
+            replaces that table completely or leaves the previous one
+            untouched — never a half-written one. Requires the pipeline to be
+            saved first.
           </p>
         </div>
         <p class="hint file-format-only">

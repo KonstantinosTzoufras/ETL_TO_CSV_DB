@@ -22,6 +22,15 @@ const URL=process.env.ETL_TEST_URL||"http://127.0.0.1:8768";
     assert.equal(await page.locator("#output-delimiter").isVisible(),false);
     assert.equal(await page.locator("#split-by").isVisible(),false);
     assert.equal(await page.locator("#export-connection-field").isVisible(),true);
+    assert.equal(await page.locator("#export-table-field").isVisible(),true);
+
+    // Left blank, the destination carries no table override at all.
+    assert.equal(await page.evaluate(()=>"table" in read().destination),false,"blank table name means no override");
+    await page.locator("#export-table").fill("customers_clean");
+    assert.equal(await page.evaluate(()=>read().destination.table),"customers_clean");
+    // Round-trips through render() when the definition is reloaded.
+    await page.evaluate(()=>{const spec=read();openDefinition(spec);});
+    assert.equal(await page.locator("#export-table").inputValue(),"customers_clean");
 
     // No ETL_EXPORT_CONNECTIONS is set for this fixture: the list comes back empty.
     await page.getByRole("button",{name:"Refresh export connections",exact:true}).click();
@@ -43,6 +52,6 @@ const URL=process.env.ETL_TEST_URL||"http://127.0.0.1:8768";
     assert.equal(await page.locator("#export-connection-field").isVisible(),false);
 
     assert.deepEqual(errors,[]);
-    console.log("Database export UI passed: field toggling, empty approval list, save-before-run gate, format switch-back.");
+    console.log("Database export UI passed: field toggling, explicit table name override, empty approval list, save-before-run gate, format switch-back.");
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
