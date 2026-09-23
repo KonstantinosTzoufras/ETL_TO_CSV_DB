@@ -72,7 +72,9 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 .\.venv\Scripts\python.exe -m etl serve
 ```
 
-Στην οθόνη επίλεξε SQL Server, connection variable `ETL_SQL_MAIN`, schema και table. Χρησιμοποίησε λογαριασμό με δικαίωμα ανάγνωσης. Δεν απαιτείται δεύτερη βάση για presets/errors. Τα στοιχεία σύνδεσης δεν αποθηκεύονται σε pipeline JSON ή SQLite. Δεν έχει γίνει σύνδεση σε πραγματική βάση στο πλαίσιο αυτής της υλοποίησης: λείπουν οι ρυθμίσεις σύνδεσης του αρχικού εργαλείου.
+Στην οθόνη επίλεξε SQL Server, connection variable `ETL_SQL_MAIN`, schema και table. Χρησιμοποίησε λογαριασμό με δικαίωμα ανάγνωσης. Δεν απαιτείται δεύτερη βάση για presets/errors. Τα στοιχεία σύνδεσης δεν αποθηκεύονται σε pipeline JSON ή SQLite.
+
+Ένα connection string από μόνο του **δεν** επιτρέπει τίποτα ακόμη — χρειάζεται ρητή έγκριση, ξεχωριστά για ανάγνωση και για γράψιμο. Δες την ενότητα **[Local `.env` startup](#local-env-startup)** παρακάτω για το `ETL_QUERY_CONNECTIONS` (ανάγνωση) και το `ETL_EXPORT_CONNECTIONS` (γράψιμο σε πίνακα). Επιβεβαιωμένο με πραγματική ζωντανή βάση: read (SELECT σε πραγματικά δεδομένα) και write (DB→DB export, atomic shadow-swap) και τα δύο δουλεύουν σωστά.
 
 ```json
 {"kind":"sqlserver","connection_env":"ETL_SQL_MAIN","schema":"dbo","table":"Customers"}
@@ -167,28 +169,82 @@ representations and no database writes. The temporary data was removed; see the
 Read-only parameterized SQL query sources: see [READ_ONLY_QUERY_SOURCES.md](READ_ONLY_QUERY_SOURCES.md). Query execution is disabled until an administrator approves a restricted connection; existing table/view sources are unchanged.
 
 Ordered independent query exports: see [ORDERED_QUERY_PIPELINES.md](ORDERED_QUERY_PIPELINES.md). One approved connection, sequential steps, explicit stop/continue policy, and separate outputs/diagnostics per step.
+
 # Local `.env` startup
 
 Both `python -m etl serve` and `start.ps1` load `.env` from the workspace root.
 Existing process environment variables take precedence. Values are literal: no
 shell evaluation or variable interpolation. Do not commit this file.
 
-An explicit `ETL_SQL_MAIN` connection string is supported. The original
-`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` fields also work: startup creates
-`ETL_SQL_MAIN` from them. `DB_PORT` is optional. `DB_DRIVER` can select an installed
-ODBC driver; otherwise Driver 18 is preferred, with Driver 17 as fallback.
-`DB_ENCRYPT` defaults to `yes`; `DB_TRUST_SERVER_CERTIFICATE` defaults to `no`.
-Set certificate trust explicitly only when appropriate for the intended server.
-Credentials stay on the server; the UI lists reference names only.
+**Every setting is exactly one line.** A JSON value (like the two approval
+lists below) must not contain a real line break anywhere inside it, even
+though it looks like it might read more clearly split across several lines -
+the parser reads `.env` one line at a time, and a value split onto a second
+line is either silently treated as a comment (if that continuation line
+starts with `#`) or rejected outright (`Invalid .env assignment on line N`).
+If a JSON value gets long, that is fine - it is still one line, just a wide one.
 
-Set `DB_TRUSTED_CONNECTION=yes` instead of `DB_USER`/`DB_PASS` for a database
-that authenticates by the Windows identity running this process (Integrated
-Security), rather than a SQL login. `DB_USER`/`DB_PASS` must then be absent -
-setting both a SQL login and `DB_TRUSTED_CONNECTION=yes` is refused rather
-than silently picking one.
+## Step 1 — a connection string per database
 
-This configuration does not grant query-source approval or assert database
-permissions. Restart after changing `.env`.
+Each database gets one `ETL_SQL_<NAME>=...` line (the name must start with
+`ETL_SQL_`). Two shapes, depending on how that database authenticates:
+
+```
+ETL_SQL_MAIN=DRIVER={ODBC Driver 18 for SQL Server};SERVER={<server>,<port>};DATABASE={<database>};UID={<user>};PWD={<password>};Encrypt={yes};TrustServerCertificate={yes};APP={ETL Studio}
+ETL_SQL_EDA=DRIVER={ODBC Driver 18 for SQL Server};SERVER={<server>,<port>};DATABASE={<database>};Trusted_Connection={yes};Encrypt={yes};TrustServerCertificate={yes};APP={ETL Studio}
+```
+
+The second form (`Trusted_Connection=yes`, no `UID`/`PWD`) is **Windows
+Authentication**: the database trusts the Windows identity of whoever is
+running this process, so there is no password to store at all.
+
+The legacy `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` fields still work as a
+convenience and build `ETL_SQL_MAIN` from them automatically; `DB_PORT` is
+optional, `DB_DRIVER` selects an installed ODBC driver (otherwise Driver 18 is
+preferred, with Driver 17 as fallback), `DB_ENCRYPT` defaults to `yes` and
+`DB_TRUST_SERVER_CERTIFICATE` defaults to `no`. Set `DB_TRUSTED_CONNECTION=yes`
+instead of `DB_USER`/`DB_PASS` for Windows Authentication through this legacy
+path; setting both a SQL login and `DB_TRUSTED_CONNECTION=yes` together is
+refused rather than silently picking one.
+
+A connection string alone grants nothing yet - it just says the database
+exists. Step 2 and Step 3 are what actually let the tool touch it.
+
+## Step 2 — approve which ones can be *read*
+
+`ETL_QUERY_CONNECTIONS` is one JSON object naming every connection allowed as
+a pipeline source (or browsable via Discover a source), and which
+schema/tables within it:
+
+```
+ETL_QUERY_CONNECTIONS={"ETL_SQL_MAIN": {"read_only": true, "max_timeout_seconds": 300, "objects": [["dbo", "*"]]}, "ETL_SQL_EDA": {"read_only": true, "max_timeout_seconds": 300, "objects": [["dbo", "*"]]}}
+```
+
+Every approved connection is a key inside this *one* `{...}` - to approve a
+second database, add another key next to the first, separated by a comma,
+still on the same line. Without an entry here, that connection cannot be
+chosen as a source at all.
+
+## Step 3 — approve which ones can be *written to*
+
+`ETL_EXPORT_CONNECTIONS` is a **completely separate** JSON object, for the
+"Database table" export destination. Read approval never implies write
+approval, or the other way around - a connection meant to be read-only stays
+read-only unless it is explicitly listed here too:
+
+```
+ETL_EXPORT_CONNECTIONS={"ETL_SQL_MAIN": {"schema": "dbo", "max_timeout_seconds": 60}, "ETL_SQL_EDA": {"schema": "dbo", "max_timeout_seconds": 60}}
+```
+
+To let one database serve as *both* a source and an export destination, list
+its `ETL_SQL_<NAME>` in **both** `ETL_QUERY_CONNECTIONS` and
+`ETL_EXPORT_CONNECTIONS` - two separate, explicit approvals for the same
+underlying connection string.
+
+Neither approval list asserts actual database permissions; the account itself
+still needs the right grants. **Restart the app after changing `.env`** - it is
+only read once, at startup.
+
 # New pipeline defaults
 
 New single-source drafts use processing version 2. Saved pipelines and the shipped
