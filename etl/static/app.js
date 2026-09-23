@@ -57,7 +57,10 @@ function read(options={}) {
   const destination=$("format").value==="sqlserver"
     ?{kind:"sqlserver",connection_env:$("export-connection").value}
     :(()=>{const d={...definition.destination,kind:$("format").value,delimiter:$("output-delimiter").value};
-            if($("split-by").value)d.split_by=$("split-by").value;else delete d.split_by;return d;})();
+            if($("split-by").value)d.split_by=$("split-by").value;else delete d.split_by;
+            // encoding is a v2-only destination option; v1 rejects the key outright.
+            if(definition.version===2)d.encoding=$("output-encoding").value;else delete d.encoding;
+            return d;})();
   definition={version:definition.version,name:$("name").value,source:source(),columns,destination};
   return structuredClone(definition);
 }
@@ -118,6 +121,7 @@ function render() {
   $("source-kind").value=s.kind; $("source-path").value=s.path||""; setDelimiter("source-delimiter",s.delimiter||";");
   if(s.encoding && ![...$("encoding").options].some(o=>o.value===s.encoding))$("encoding").add(new Option(s.encoding,s.encoding)); $("encoding").value=s.encoding||"utf-8-sig"; if(s.connection_env && ![...$("connection").options].some(o=>o.value===s.connection_env))$("connection").add(new Option(s.connection_env+" (saved reference; availability checked on use)",s.connection_env)); $("connection").value=s.connection_env||""; $("schema").value=s.schema||"dbo"; $("table").value=s.table||"";
   $("format").value=definition.destination.kind; setDelimiter("output-delimiter",definition.destination.delimiter||";");
+  $("output-encoding").value=definition.destination.encoding||"utf-8-sig";
   if(definition.destination.kind==="sqlserver"){
     const wanted=definition.destination.connection_env;
     if(wanted && ![...$("export-connection").options].some(o=>o.value===wanted))$("export-connection").add(new Option(wanted+" (not yet refreshed)",wanted));
