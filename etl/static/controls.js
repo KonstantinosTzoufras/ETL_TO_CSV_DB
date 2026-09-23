@@ -66,7 +66,7 @@ window.EditorControls=(()=>{
     input.dataset.transformBacked="true";
     const compact=!!input.closest('#columns');
     const box=document.createElement(compact?'details':'div');box.className="transform-control";
-    box.innerHTML='<div class="transform-chain"></div><div class="transform-add"><select aria-label="Transform to add"><option value="trim">Trim edges</option><option value="empty_to_null">Empty string → NULL</option><option value="upper">Uppercase</option><option value="lower">Lowercase</option></select><button type="button" data-transform-action="add">Add transform</button></div>';
+    box.innerHTML='<div class="transform-chain"></div><div class="transform-add"><select aria-label="Transform to add"><option value="trim">Trim edges</option><option value="empty_to_null">Empty string → NULL</option><option value="upper">Uppercase</option><option value="lower">Lowercase</option><option value="linebreaks_to_space">Line breaks → space</option></select><button type="button" data-transform-action="add">Add transform</button></div>';
     if(compact)box.prepend(document.createElement('summary'));
     input.after(box);drawTransforms(input);
     box.onclick=event=>{

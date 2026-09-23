@@ -1,35 +1,19 @@
-"""Isolated one-column newline-cleaning experiment; no production registration.
+"""Benchmark for the linebreaks_to_space production transform.
 
 python -m integration.benchmark_linebreaks --rows 1000000 --rounds 3
 """
 import argparse
-from contextlib import contextmanager
 import csv
 import json
 from pathlib import Path
 import statistics
 import tempfile
 from time import perf_counter
-from unittest.mock import patch
 
-from etl import spec, transforms
+from etl import transforms
 from integration.benchmark import measure
 
 OPERATION = 'linebreaks_to_space'
-
-
-def linebreaks_to_space(value):
-    # CRLF must be replaced first, as one newline, not two spaces.
-    return value.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
-
-
-@contextmanager
-def experimental_transform():
-    # Only this isolated benchmark process can see the additional operation.
-    with patch.object(spec, 'TRANSFORMS', spec.TRANSFORMS | {OPERATION}), \
-         patch.object(transforms, '_OPERATIONS', transforms._OPERATIONS | {OPERATION}), \
-         patch.dict(transforms._STRING_OPS, {OPERATION: linebreaks_to_space}):
-        yield
 
 
 def values(length, percent):
@@ -40,28 +24,27 @@ def values(length, percent):
 
 def micro(rows, rounds):
     results = []
-    with experimental_transform():
-        for length in (100, 1000):
-            for percent in (0, 10, 100):
-                samples = values(length, percent)
-                times = {'baseline': [], 'clean': []}
-                for round_number in range(rounds):
-                    for mode in (('baseline', 'clean') if round_number % 2 == 0 else ('clean', 'baseline')):
-                        operations = (OPERATION,) if mode == 'clean' else ()
-                        start = perf_counter()
-                        for i in range(rows):
-                            transforms.apply_transforms(samples[i % 100], operations, version=2)
-                        times[mode].append(perf_counter() - start)
-                results.append({'characters': length, 'percent_with_crlf': percent,
-                                'seconds': times,
-                                'median_added_seconds': statistics.median(times['clean']) - statistics.median(times['baseline'])})
+    for length in (100, 1000):
+        for percent in (0, 10, 100):
+            samples = values(length, percent)
+            times = {'baseline': [], 'clean': []}
+            for round_number in range(rounds):
+                for mode in (('baseline', 'clean') if round_number % 2 == 0 else ('clean', 'baseline')):
+                    operations = (OPERATION,) if mode == 'clean' else ()
+                    start = perf_counter()
+                    for i in range(rows):
+                        transforms.apply_transforms(samples[i % 100], operations, version=2)
+                    times[mode].append(perf_counter() - start)
+            results.append({'characters': length, 'percent_with_crlf': percent,
+                            'seconds': times,
+                            'median_added_seconds': statistics.median(times['clean']) - statistics.median(times['baseline'])})
     return results
 
 
 def full(rows, rounds):
     samples = values(100, 10)
     results = {'baseline': [], 'clean': []}
-    with tempfile.TemporaryDirectory(prefix='etl-linebreaks-') as directory, experimental_transform():
+    with tempfile.TemporaryDirectory(prefix='etl-linebreaks-') as directory:
         root = Path(directory)
         with (root / 'input.csv').open('w', encoding='utf-8', newline='') as handle:
             writer = csv.writer(handle)

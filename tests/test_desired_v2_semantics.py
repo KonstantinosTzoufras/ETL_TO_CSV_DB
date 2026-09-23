@@ -53,6 +53,20 @@ class DesiredV2AlreadySatisfiedTests(SemanticsTestCase):
     def test_explicit_trim_then_empty_to_null_produces_null(self):
         self.assertEqual(mapped("   ", transforms=["trim", "empty_to_null"]), ({"value": None}, {}))
 
+    def test_linebreaks_to_space_normalizes_every_line_ending_kind(self):
+        for value, expected in (("a\r\nb", "a b"), ("a\rb", "a b"), ("a\nb", "a b"),
+                                 ("a\r\n\r\nb", "a  b"), ("no breaks here", "no breaks here")):
+            with self.subTest(value=value):
+                self.assertEqual(mapped(value, type="string", transforms=["linebreaks_to_space"]),
+                                  ({"value": expected}, {}))
+
+    def test_linebreaks_to_space_composes_with_trim(self):
+        # A line break the replacement turns into a space is itself
+        # whitespace, so trim removes it from either edge regardless of
+        # which of the two runs first.
+        self.assertEqual(mapped("\na ", transforms=["linebreaks_to_space", "trim"]), ({"value": "a"}, {}))
+        self.assertEqual(mapped("\na ", transforms=["trim", "linebreaks_to_space"]), ({"value": "a"}, {}))
+
     def test_dates_require_explicit_type_and_strict_format(self):
         self.assertEqual(mapped("2024-02-29"), ({"value": "2024-02-29"}, {}))
         self.assertEqual(mapped("2024-02-29", type="date"), ({"value": date(2024, 2, 29)}, {}))

@@ -83,7 +83,7 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 ## Κανόνες και σημασιολογία
 
 - Μία output στήλη έχει **είτε** `source` **είτε** `literal`. Τα ονόματα εξόδου είναι μοναδικά χωρίς διάκριση πεζών/κεφαλαίων.
-- Transforms: `trim`, `lower`, `upper`, `empty_to_null`, με τη σειρά που δηλώνονται.
+- Transforms: `trim`, `lower`, `upper`, `empty_to_null`, `linebreaks_to_space`, με τη σειρά που δηλώνονται.
 - Types: `string`, `int`, `decimal`, `float`, `bool`, `date`, `datetime`. Πρόκειται για μετατροπές τιμών και ελέγχους, όχι μόνο SQL predicates.
 - `required: true`: απορρίπτει null/κενές/μόνο κενά τιμές. Προαιρετικές κενές τιμές γίνονται null, ακόμη και σε typed πεδία.
 - `max_length`: έλεγχος μετά τα transforms, πριν από τη μετατροπή τύπου.

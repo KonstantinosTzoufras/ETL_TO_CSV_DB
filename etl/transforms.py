@@ -3,8 +3,14 @@ from .conversions import text
 from .spec import ConfigError
 
 
+def _linebreaks_to_space(value):
+    # CRLF first, as one line break, not two spaces.
+    return value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+
 # Bound once: these tables were rebuilt on every value in the hot path.
-_STRING_OPS = {"trim": str.strip, "upper": str.upper, "lower": str.lower}
+_STRING_OPS = {"trim": str.strip, "upper": str.upper, "lower": str.lower,
+               "linebreaks_to_space": _linebreaks_to_space}
 _OPERATIONS = frozenset(_STRING_OPS) | {"empty_to_null"}
 
 

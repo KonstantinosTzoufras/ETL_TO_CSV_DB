@@ -50,7 +50,7 @@ def source_spec(source):
 
 
 TYPES = {"string", "int", "decimal", "float", "bool", "date", "datetime"}
-TRANSFORMS = {"trim", "upper", "lower", "empty_to_null"}
+TRANSFORMS = {"trim", "upper", "lower", "empty_to_null", "linebreaks_to_space"}
 
 
 def destination_spec(destination, version):
