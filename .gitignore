@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 data/
 .env
+.env.backup-*
+ENV_SETUP_EXAMPLE.txt
 *.log
 node_modules/
 graphify-out/
