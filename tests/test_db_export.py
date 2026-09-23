@@ -26,7 +26,7 @@ REFERENCE = "ETL_SQL_MAIN"
 
 class FakeCursor:
     """Records every statement in order; can be told to fail on demand."""
-    def __init__(self, fail_on=None, error=None):
+    def __init__(self, fail_on=None, error=None, existing_object_ids=()):
         self.statements = []
         self.executed_batches = []
         self.fail_on = fail_on or (lambda sql: False)
@@ -37,9 +37,15 @@ class FakeCursor:
         # cleanup step can be shown to need a fresh cursor rather than reusing
         # the one the failure happened on.
         self.broken = False
+        # Real T-SQL identifiers a SELECT OBJECT_ID('schema.name') check
+        # should report as already existing - everything else reports absent,
+        # matching a fresh/empty real database.
+        self.existing_object_ids = set(existing_object_ids)
+        self._last_sql = None
 
     def execute(self, sql, *args):
         self.statements.append(sql)
+        self._last_sql = sql
         if self.broken or self.fail_on(sql):
             self.broken = True
             raise self.error("simulated failure")
@@ -51,6 +57,14 @@ class FakeCursor:
             self.broken = True
             raise self.error("simulated failure")
         self.executed_batches.append((sql, list(rows)))
+
+    def fetchone(self):
+        if self._last_sql and "OBJECT_ID(" in self._last_sql:
+            for identifier in self.existing_object_ids:
+                if identifier in self._last_sql:
+                    return (1,)
+            return (None,)
+        return None
 
     def close(self):
         pass
@@ -79,8 +93,8 @@ class _CursorLog:
     def __init__(self):
         self.cursors = []
 
-    def _make(self, fail_on, error):
-        cursor = FakeCursor(fail_on=fail_on, error=error)
+    def _make(self, fail_on, error, existing_object_ids):
+        cursor = FakeCursor(fail_on=fail_on, error=error, existing_object_ids=existing_object_ids)
         self.cursors.append(cursor)
         return cursor
 
@@ -94,17 +108,19 @@ class _CursorLog:
 
 
 @contextmanager
-def fake_connection(fail_on=None, error=None):
+def fake_connection(fail_on=None, error=None, existing_object_ids=()):
     """Patches etl.db_export's own `import pyodbc` and pyodbc.connect.
 
     `error` is the exception class raised where `fail_on` matches - defaults
     to the fake pyodbc.Error, but a test can pass MemoryError (or anything
     else pyodbc.Error's `except` clauses don't catch) to prove the module
     still cleans up rather than depending on that one exception hierarchy.
+    `existing_object_ids` names identifiers a SELECT OBJECT_ID(...) check
+    should report as already present in the (fake) real database.
     """
     log = _CursorLog()
     connection = MagicMock()
-    connection.cursor.side_effect = lambda: log._make(fail_on, error)
+    connection.cursor.side_effect = lambda: log._make(fail_on, error, existing_object_ids)
     commits, rollbacks = [], []
     connection.commit.side_effect = lambda: commits.append(True)
     connection.rollback.side_effect = lambda: rollbacks.append(True)
@@ -238,7 +254,8 @@ class WriterLifecycleTests(unittest.TestCase):
         self.destination = {"kind": "sqlserver", "connection_env": "ETL_SQL_MAIN"}
 
     def make(self, pipeline_id="p1", name="Customers", destination=None):
-        return SqlServerOutputWriter(columns(), destination or self.destination, pipeline_id, name, self.store.claim_export_table)
+        return SqlServerOutputWriter(columns(), destination or self.destination, pipeline_id, name,
+                                     self.store.claim_export_table, self.store.export_table_for)
 
     def test_an_explicit_table_name_overrides_the_pipeline_name_default(self):
         with fake_connection() as (cursor, commits, rollbacks):
@@ -248,6 +265,36 @@ class WriterLifecycleTests(unittest.TestCase):
     def test_without_an_explicit_table_name_the_pipeline_name_is_still_used(self):
         with fake_connection() as (cursor, commits, rollbacks):
             writer = self.make(name="Customers")
+            self.assertEqual(writer.table_name, "z0_customers")
+
+    def test_a_first_claim_colliding_with_a_real_untracked_table_is_refused(self):
+        # dbo.z0_customers already exists in the real database, but nothing in
+        # this store's registry knows about it - a brand-new claim must not
+        # silently adopt (and later overwrite) someone else's table.
+        with fake_connection(existing_object_ids=("dbo.z0_customers",)) as (log, commits, rollbacks):
+            with self.assertRaisesRegex(ConfigError, "already exists"):
+                self.make(name="Customers")
+            self.assertFalse(any("CREATE TABLE" in s for s in log.statements),
+                             "must be refused before any DDL runs, not just before the swap")
+            self.assertIsNone(self.store.export_table_for("p1"),
+                              "a refused first claim must not be left permanently in the registry")
+
+    def test_a_second_run_of_the_same_pipeline_is_not_blocked_by_its_own_table(self):
+        # The pipeline's own previously-created table obviously already
+        # exists on every later run; that must never be treated as a
+        # collision with someone else's table.
+        with fake_connection() as (cursor, commits, rollbacks):
+            self.make().finish()
+        with fake_connection(existing_object_ids=("dbo.z0_customers",)) as (cursor, commits, rollbacks):
+            writer = self.make()
+            self.assertEqual(writer.table_name, "z0_customers")
+
+    def test_without_a_lookup_callback_the_collision_check_is_skipped(self):
+        # lookup_table is optional (e.g. direct construction in older code
+        # paths); without it, behaviour is exactly what it was before this
+        # check existed, rather than refusing to run at all.
+        with fake_connection(existing_object_ids=("dbo.z0_customers",)) as (cursor, commits, rollbacks):
+            writer = SqlServerOutputWriter(columns(), self.destination, "p1", "Customers", self.store.claim_export_table)
             self.assertEqual(writer.table_name, "z0_customers")
 
     def test_a_successful_run_drops_the_shadow_and_renames_it_into_place(self):

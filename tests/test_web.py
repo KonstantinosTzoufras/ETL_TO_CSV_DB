@@ -178,6 +178,7 @@ class WebTests(unittest.TestCase):
 
     def test_database_export_runs_end_to_end_and_claims_a_table(self):
         cursor=MagicMock();connection=MagicMock();connection.cursor.return_value=cursor
+        cursor.fetchone.return_value=(None,)  # SELECT OBJECT_ID(...): no real table by that name yet
         module=MagicMock();module.Error=type("FakeError",(Exception,),{})
         module.connect.return_value=connection
         _,body=self.request("POST","/api/pipelines",{"spec":self.spec})

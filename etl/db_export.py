@@ -135,7 +135,7 @@ class SqlServerOutputWriter:
     # risk beyond what already exists - only client-side memory for one batch.
     BATCH = 20000
 
-    def __init__(self, columns, destination, pipeline_id, pipeline_name, claim_table):
+    def __init__(self, columns, destination, pipeline_id, pipeline_name, claim_table, lookup_table=None):
         require(isinstance(pipeline_id, str) and pipeline_id, "Database export needs a saved pipeline; save it first")
         try:
             import pyodbc
@@ -150,9 +150,12 @@ class SqlServerOutputWriter:
         self.names = [column["name"] for column in columns]
         self.types = {column["name"]: column.get("type", "string") for column in columns}
         # An explicit table name is still routed through the same sanitizer as
-        # the pipeline-name default, and through the same permanent claim: the
-        # first successful run decides it, later edits here have no effect.
-        self.table_name = claim_table(pipeline_id, table_name_for(destination.get("table") or pipeline_name))
+        # the pipeline-name default. Checked *before* claiming: claim_table's
+        # claim is permanent from the moment it succeeds, so a same-named real
+        # table must be ruled out first - discovering the collision only after
+        # claiming would strand the pipeline on a name it can never use.
+        desired_name = table_name_for(destination.get("table") or pipeline_name)
+        is_new_claim = lookup_table is not None and lookup_table(pipeline_id) is None
         self.shadow_name = shadow_name_for(pipeline_id)
         self._batch = []
         self._rows = 0
@@ -174,6 +177,20 @@ class SqlServerOutputWriter:
             except Exception:
                 pass
         try:
+            if is_new_claim:
+                # The claim registry only knows about tables this tool itself
+                # created. A first-time claim can still collide with a table
+                # that already exists for some other reason (created by hand,
+                # by another tool, or left over from before this registry
+                # existed) - finish() would otherwise drop and replace it on
+                # the very next successful run without ever having been told
+                # that was fine.
+                self.cursor.execute(f"SELECT OBJECT_ID({_sql_string(self.schema + '.' + desired_name)})")
+                if self.cursor.fetchone()[0] is not None:
+                    raise ConfigError(
+                        f"A table named {self.schema}.{desired_name} already exists and was not created by "
+                        "this pipeline. Choose a different table name, or rename/remove the existing table first.")
+            self.table_name = claim_table(pipeline_id, desired_name)
             schema_id, shadow_id = identifier(self.schema), identifier(self.shadow_name)
             self.cursor.execute(f"IF OBJECT_ID({_sql_string(self.schema + '.' + self.shadow_name)}) IS NOT NULL DROP TABLE {schema_id}.{shadow_id}")
             columns_sql = ", ".join(f"{identifier(c['name'])} {sql_type_for(c)}" for c in columns)
@@ -182,6 +199,9 @@ class SqlServerOutputWriter:
         except pyodbc.Error:
             self._close(commit=False)
             raise ConfigError("Database export failed while preparing the table") from None
+        except ConfigError:
+            self._close(commit=False)
+            raise
 
     def write_result(self, result):
         row = [sql_value(result.converted_values.get(name), self.types[name]) for name in self.names]

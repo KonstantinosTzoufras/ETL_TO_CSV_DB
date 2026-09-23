@@ -95,7 +95,7 @@ class Application:
                 return
             self.store.update_run(run_id, "running")
             report = execute(spec, self.root, self.data / "runs", progress=lambda counts: self.store.update_run(run_id, "running", counts),
-                             pipeline_id=pipeline_id, claim_table=self.store.claim_export_table)
+                             pipeline_id=pipeline_id, claim_table=self.store.claim_export_table, lookup_table=self.store.export_table_for)
             self.store.update_run(run_id, "completed", report)
         except (ConfigError, OSError, ValueError, csv.Error) as error:
             self.fail(run_id, spec, str(error))

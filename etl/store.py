@@ -129,6 +129,10 @@ class Store:
         the table, so nothing that already points at it breaks quietly. A
         desired_name already claimed by a DIFFERENT pipeline is refused
         outright, before any DDL runs - two pipelines never share one table.
+        Callers that need to know whether this specific call is the one doing
+        the claiming (to decide whether a same-named real table is safe to
+        find) should check export_table_for(pipeline_id) first - it returns
+        None exactly when this call is about to make a brand-new claim.
         """
         with self.connect() as db:
             row = db.execute("SELECT table_name FROM pipeline_exports WHERE pipeline_id=?", (pipeline_id,)).fetchone()

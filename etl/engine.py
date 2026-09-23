@@ -167,7 +167,7 @@ def map_row(row, columns, lookups):
     return legacy_projection(process_row(pipeline, SourceRow(1, row), lookups))
 
 
-def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=None, pipeline_id=None, claim_table=None):
+def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=None, pipeline_id=None, claim_table=None, lookup_table=None):
     pipeline = pipeline_from_dict(spec)
     require(limit is None or type(limit) is int and 1 <= limit <= 1000, "Preview limit must be 1–1000")
     require(limit is not None or output_root is not None, "Full execution needs an output directory")
@@ -194,7 +194,7 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
             report["directory"] = str(directory)
             if spec["destination"]["kind"] == "sqlserver":
                 require(claim_table is not None, "Database export needs a saved pipeline; save it first")
-                db_writer = SqlServerOutputWriter(spec["columns"], spec["destination"], pipeline_id, spec["name"], claim_table)
+                db_writer = SqlServerOutputWriter(spec["columns"], spec["destination"], pipeline_id, spec["name"], claim_table, lookup_table)
                 # Runs to completion or leaves the previous table untouched -
                 # never a half-written one. See finish()'s own docstring.
                 stack.callback(db_writer.finish)
