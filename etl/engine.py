@@ -245,10 +245,10 @@ def execute(spec, root, output_root=None, limit=None, progress=None, *, on_row=N
         if directory is not None:
             kind = spec["destination"]["kind"]
             if db_writer is not None:
-                report["files"] = ["rejected.csv"]
+                report["files"] = ["rejected.csv", "rejected.xlsx"]
                 report["table"] = {"schema": db_writer.schema, "name": db_writer.table_name, "rows": db_writer.rows_written}
             elif split_field is None:
-                report["files"] = [f"valid.{kind}", "rejected.csv"]
+                report["files"] = [f"valid.{kind}", "rejected.csv", "rejected.xlsx"]
             else:
-                report["files"] = sorted(f"{dirname}/valid.{kind}" for dirname in group_dirs.values()) + ["rejected.csv"]
+                report["files"] = sorted(f"{dirname}/valid.{kind}" for dirname in group_dirs.values()) + ["rejected.csv", "rejected.xlsx"]
     return report

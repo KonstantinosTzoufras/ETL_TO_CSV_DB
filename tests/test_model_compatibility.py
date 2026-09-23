@@ -31,7 +31,7 @@ class ModelCompatibilityTests(unittest.TestCase):
             report = execute(spec, self.root, self.root / "out")
             self.assertEqual((report["processed"], report["valid"], report["invalid"]), (5, 3, 2))
             self.assertEqual(set(report), {"processed", "valid", "invalid", "sample", "preview", "directory", "files"})
-            self.assertEqual(report["files"], ["valid.csv", "rejected.csv"])
+            self.assertEqual(report["files"], ["valid.csv", "rejected.csv", "rejected.xlsx"])
 
     def test_preexisting_v1_rows_and_snapshots_survive_untouched(self):
         db_path = self.root / "state.sqlite3"

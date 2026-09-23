@@ -158,7 +158,7 @@ def step_history(run, step_id, data_root, *, allow_partial=False):
 def download_path(run, step_id, filename, data_root):
     projected=step_history(run,step_id,data_root)
     extension=projected['spec']['destination']['kind']
-    require(filename in (f'{step_id}.{extension}','rejected.csv','report.json'),'Output file not found')
+    require(filename in (f'{step_id}.{extension}','rejected.csv','rejected.xlsx','report.json'),'Output file not found')
     path=(Path(projected['report']['directory'])/filename).resolve()
     require(path.is_relative_to(Path(projected['report']['directory']).resolve()) and path.is_file(),'Output file not found')
     return path

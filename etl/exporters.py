@@ -60,11 +60,11 @@ class OutputWriter:
     """
     XLSX_DATA_ROWS = 1048575  # One header row per sheet.
 
-    def __init__(self, directory, names, destination, stack, *, version=1):
+    def __init__(self, directory, names, destination, stack, *, version=1, stem="valid"):
         destination_spec(destination, version)
         self.version = version
         self.kind = destination["kind"]
-        self.path = directory / ("valid." + self.kind)
+        self.path = directory / (stem + "." + self.kind)
         self.names = tuple(names)
         self.encoding = destination.get("encoding", "utf-8-sig")
         # SQL Server's own bulk-import tools have no \N convention (that is
@@ -162,6 +162,12 @@ class RejectedWriter:
         self.writer = csv.writer(handle, delimiter=";" if version == 1 else destination.get("delimiter", ";"),
                                  quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
         self.writer.writerow(self.HEADERS)
+        # A plain-text Excel twin of the same four columns, for opening
+        # rejections directly rather than importing a CSV - independent of
+        # whatever the pipeline's own destination is (even a database table
+        # has no XLSX concept of its own, but its rejections still do).
+        self.xlsx = OutputWriter(directory, self.HEADERS, {"kind": "xlsx"}, stack, version=2, stem="rejected")
+        stack.callback(self.xlsx.finish)
 
     def write_result(self, result):
         require(not result.valid, "Rejected-row exporter received a valid RowResult")
@@ -175,3 +181,4 @@ class RejectedWriter:
             payload = [json.dumps(value, ensure_ascii=False, default=json_default)
                        for value in (diagnostic["original_values"], stages, diagnostic["errors"])]
         self.writer.writerow([result.source.number, *payload])
+        self.xlsx.write(dict(zip(self.HEADERS, [result.source.number, *payload])))

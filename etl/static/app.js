@@ -194,7 +194,11 @@ function preview(report) {
 }
 function downloadLinks(run){
   const kind=run.spec.destination.kind;
-  const rejectedLink=(run.report.files||["rejected.csv"]).includes("rejected.csv")?`<a href="/download/${run.id}/rejected.csv">Rejected rows</a>`:"";
+  const reportedFiles=run.report.files||["rejected.csv"];
+  // A run saved before the Excel twin existed has no "rejected.xlsx" in its
+  // own report - only offer the link for files that actually exist.
+  const rejectedLink=(reportedFiles.includes("rejected.csv")?`<a href="/download/${run.id}/rejected.csv">Rejected rows</a>`:"")
+                     +(reportedFiles.includes("rejected.xlsx")?`<a href="/download/${run.id}/rejected.xlsx">Rejected rows (Excel)</a>`:"");
   if(kind==="sqlserver"){
     const table=run.report.table;
     // A run stored before the report carried this can no longer say where its
@@ -205,7 +209,7 @@ function downloadLinks(run){
   // Runs saved before split export existed have no report.files; keep their
   // exact former behaviour rather than guessing at names that may not exist.
   const files=run.report.files||[`valid.${kind}`,"rejected.csv"];
-  const valid=files.filter(f=>f!=="rejected.csv");
+  const valid=files.filter(f=>f!=="rejected.csv" && f!=="rejected.xlsx");
   if(!valid.length)return rejectedLink;  // every row was rejected; no group was ever created
   const anchor=f=>{
     const group=f.includes("/")?f.split("/")[0]:null;

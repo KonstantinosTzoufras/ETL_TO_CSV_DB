@@ -191,7 +191,7 @@ class WebTests(unittest.TestCase):
             run=self.wait_run(json.loads(body)["id"])
         self.assertEqual(run["status"],"completed",run.get("error"))
         self.assertEqual(run["report"]["table"]["name"],"z0_customers_clean_export")
-        self.assertEqual(run["report"]["files"],["rejected.csv"])
+        self.assertEqual(run["report"]["files"],["rejected.csv","rejected.xlsx"])
         # A download for the (nonexistent) valid file is refused; rejected.csv works.
         self.assertEqual(self.request("GET",f"/download/{run['id']}/valid.csv")[0],404)
         self.assertEqual(self.request("GET",f"/download/{run['id']}/rejected.csv")[0],200)

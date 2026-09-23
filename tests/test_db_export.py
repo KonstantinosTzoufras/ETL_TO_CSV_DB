@@ -454,7 +454,7 @@ class EndToEndTests(unittest.TestCase):
     def test_a_full_run_reports_the_table_and_writes_no_local_valid_file(self):
         with fake_connection() as (cursor, commits, rollbacks):
             report = execute(self.spec, self.root, self.root / "out", pipeline_id="p1", claim_table=self.store.claim_export_table)
-        self.assertEqual(report["files"], ["rejected.csv"])
+        self.assertEqual(report["files"], ["rejected.csv", "rejected.xlsx"])
         self.assertEqual(report["table"], {"schema": "dbo", "name": "z0_customers", "rows": 2})
         directory = Path(report["directory"])
         self.assertTrue((directory / "rejected.csv").is_file())

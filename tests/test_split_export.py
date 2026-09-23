@@ -62,8 +62,8 @@ class SplitExportTests(unittest.TestCase):
         self.write(["active;10", "inactive;20"])
         report = execute(spec(), self.root, self.root / "out")
         directory = Path(report["directory"])
-        self.assertEqual(self.group_files(directory), ["rejected.csv", "valid.csv"])
-        self.assertEqual(report["files"], ["valid.csv", "rejected.csv"])
+        self.assertEqual(self.group_files(directory), ["rejected.csv", "rejected.xlsx", "valid.csv"])
+        self.assertEqual(report["files"], ["valid.csv", "rejected.csv", "rejected.xlsx"])
 
     # Grouping behaviour.
 
@@ -71,14 +71,14 @@ class SplitExportTests(unittest.TestCase):
         self.write(["active;10", "inactive;20", "active;30"])
         report = execute(spec(split_by="status"), self.root, self.root / "out")
         directory = Path(report["directory"])
-        self.assertEqual(self.group_files(directory), ["active/valid.csv", "inactive/valid.csv", "rejected.csv"])
+        self.assertEqual(self.group_files(directory), ["active/valid.csv", "inactive/valid.csv", "rejected.csv", "rejected.xlsx"])
         with (directory / "active" / "valid.csv").open(encoding="utf-8-sig") as handle:
             rows = list(csv.DictReader(handle, delimiter=";"))
         self.assertEqual([r["amount"] for r in rows], ["10", "30"])
         with (directory / "inactive" / "valid.csv").open(encoding="utf-8-sig") as handle:
             rows = list(csv.DictReader(handle, delimiter=";"))
         self.assertEqual([r["amount"] for r in rows], ["20"])
-        self.assertEqual(sorted(report["files"]), ["active/valid.csv", "inactive/valid.csv", "rejected.csv"])
+        self.assertEqual(sorted(report["files"]), ["active/valid.csv", "inactive/valid.csv", "rejected.csv", "rejected.xlsx"])
 
     def test_null_and_empty_string_are_different_groups(self):
         columns = [{"name": "flag", "source": "flag", "type": "string", "transforms": ["empty_to_null"]},
@@ -86,7 +86,7 @@ class SplitExportTests(unittest.TestCase):
         (self.root / "input.csv").write_text("flag;amount\n;1\nx;2\n", encoding="utf-8")
         report = execute(spec(split_by="flag", columns=columns), self.root, self.root / "out")
         directory = Path(report["directory"])
-        self.assertEqual(self.group_files(directory), ["NULL/valid.csv", "rejected.csv", "x/valid.csv"])
+        self.assertEqual(self.group_files(directory), ["NULL/valid.csv", "rejected.csv", "rejected.xlsx", "x/valid.csv"])
 
     def test_a_row_that_fails_validation_never_creates_a_group(self):
         columns = [{"name": "status", "source": "status", "type": "string", "required": True},
@@ -95,7 +95,7 @@ class SplitExportTests(unittest.TestCase):
         report = execute(spec(split_by="status", columns=columns), self.root, self.root / "out")
         directory = Path(report["directory"])
         # "broken" would have been a third group, but its row failed type conversion.
-        self.assertEqual(self.group_files(directory), ["active/valid.csv", "rejected.csv"])
+        self.assertEqual(self.group_files(directory), ["active/valid.csv", "rejected.csv", "rejected.xlsx"])
         self.assertEqual(report["invalid"], 2)
 
     def test_every_row_rejected_leaves_no_group_at_all(self):
@@ -103,8 +103,8 @@ class SplitExportTests(unittest.TestCase):
         self.write(["active;10", "inactive;20"], header="status;amount")
         report = execute(spec(split_by="status", columns=columns), self.root, self.root / "out")
         directory = Path(report["directory"])
-        self.assertEqual(self.group_files(directory), ["rejected.csv"])
-        self.assertEqual(report["files"], ["rejected.csv"])
+        self.assertEqual(self.group_files(directory), ["rejected.csv", "rejected.xlsx"])
+        self.assertEqual(report["files"], ["rejected.csv", "rejected.xlsx"])
 
     # Safety and filename handling.
 
@@ -118,13 +118,13 @@ class SplitExportTests(unittest.TestCase):
         rows = [f"id{n};{n}" for n in range(MAX_SPLIT_GROUPS)]
         self.write(rows, header="status;amount")
         report = execute(spec(split_by="status"), self.root, self.root / "out")
-        self.assertEqual(len(report["files"]) - 1, MAX_SPLIT_GROUPS)  # minus rejected.csv
+        self.assertEqual(len(report["files"]) - 2, MAX_SPLIT_GROUPS)  # minus rejected.csv, rejected.xlsx
 
     def test_values_with_unsafe_filename_characters_are_sanitized(self):
         self.write(['"a/b:c";1', '"a\\b?c";2'], header="status;amount")
         report = execute(spec(split_by="status"), self.root, self.root / "out")
         directory = Path(report["directory"])
-        names = {Path(f).parts[0] for f in report["files"] if f != "rejected.csv"}
+        names = {Path(f).parts[0] for f in report["files"] if f not in ("rejected.csv", "rejected.xlsx")}
         self.assertEqual(len(names), 2, "two distinct raw values must not collapse into one folder")
         for name in names:
             self.assertTrue((directory / name / "valid.csv").is_file())
@@ -133,7 +133,7 @@ class SplitExportTests(unittest.TestCase):
         self.write(['"a/b";1', '"a:b";2'], header="status;amount")  # both sanitize to "a_b"
         report = execute(spec(split_by="status"), self.root, self.root / "out")
         directory = Path(report["directory"])
-        valid_dirs = sorted(Path(f).parts[0] for f in report["files"] if f != "rejected.csv")
+        valid_dirs = sorted(Path(f).parts[0] for f in report["files"] if f not in ("rejected.csv", "rejected.xlsx"))
         self.assertEqual(len(valid_dirs), 2)
         self.assertEqual(len(set(valid_dirs)), 2)
         rows = []
@@ -147,7 +147,7 @@ class SplitExportTests(unittest.TestCase):
         report = execute(spec(split_by="status"), self.root, self.root / "out")
         directory = Path(report["directory"])
         for f in report["files"]:
-            if f == "rejected.csv":
+            if f in ("rejected.csv", "rejected.xlsx"):
                 continue
             self.assertTrue((directory / f).is_file())
 
@@ -174,7 +174,7 @@ class SplitExportTests(unittest.TestCase):
         s["destination"] = {"kind": "xlsx", "split_by": "status"}
         report = execute(s, self.root, self.root / "out")
         directory = Path(report["directory"])
-        self.assertEqual(sorted(report["files"]), ["active/valid.xlsx", "inactive/valid.xlsx", "rejected.csv"])
+        self.assertEqual(sorted(report["files"]), ["active/valid.xlsx", "inactive/valid.xlsx", "rejected.csv", "rejected.xlsx"])
         self.assertTrue((directory / "active" / "valid.xlsx").is_file())
 
     # Ordered (multi-step) pipelines explicitly do not support this yet.

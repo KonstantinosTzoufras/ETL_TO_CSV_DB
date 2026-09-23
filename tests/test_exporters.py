@@ -211,6 +211,24 @@ class ExporterTests(unittest.TestCase):
         self.assertEqual(stages["converted_values"]["amount"], {"$type": "decimal", "value": "123.4500"})
         self.assertEqual(errors["bad"], [{"field": "bad", "code": "invalid_type", "stage": "conversion", "message": "expected integer"}])
 
+    def test_rejected_xlsx_mirrors_the_csv_content_exactly(self):
+        from openpyxl import load_workbook
+        source = SourceRow(7, {"amount": Decimal("123.4500"), "bad": " 003 "}, 9, 11)
+        rejected = RowResult(source, {"amount": Decimal("123.4500"), "bad": "003"}, {"amount": Decimal("123.4500")},
+                             (FieldError("bad", "invalid_type", "expected integer", "conversion"),))
+        with ExitStack() as stack:
+            writer = RejectedWriter(self.root, {"kind": "csv", "delimiter": ",", "encoding": "utf-8"}, stack, version=2)
+            writer.write_result(rejected)
+        csv_rows = self.csv_rows(self.root / "rejected.csv", ",", "utf-8")
+        workbook = load_workbook(self.root / "rejected.xlsx", read_only=True)
+        try:
+            xlsx_rows = [[cell.value for cell in row] for row in workbook.active.rows]
+        finally:
+            workbook.close()
+        self.assertEqual(xlsx_rows[0], list(RejectedWriter.HEADERS))
+        self.assertEqual(str(xlsx_rows[1][0]), csv_rows[1][0])  # record_number: int cell vs text cell
+        self.assertEqual(xlsx_rows[1][1:], csv_rows[1][1:])  # the three JSON payload columns, verbatim
+
     def test_v1_rejection_layout_and_mixed_projection_remain_compatible(self):
         row = RowResult(SourceRow(1, {"bad": " x ", "empty": ""}), {"bad": "x", "empty": ""}, {"empty": None},
                         (FieldError("bad", "invalid_type", "bad integer", "conversion"),))
