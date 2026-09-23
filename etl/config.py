@@ -35,9 +35,19 @@ def load_workspace_env(root, *, environ=None, drivers=None):
     # fields are a convenience for this application's original local setup.
     if env.get("ETL_SQL_MAIN") or not env.get("DB_HOST"):
         return
-    required = ("DB_NAME", "DB_USER", "DB_PASS")
-    if any(not env.get(key) for key in required):
-        raise ValueError("DB_HOST requires DB_NAME, DB_USER and DB_PASS in the environment or .env")
+    if not env.get("DB_NAME"):
+        raise ValueError("DB_HOST requires DB_NAME in the environment or .env")
+    trusted = env.get("DB_TRUSTED_CONNECTION", "no").lower()
+    if trusted not in {"yes", "no"}:
+        raise ValueError("DB_TRUSTED_CONNECTION must be yes or no")
+    if trusted == "yes":
+        # The Windows identity running this process is the credential; a SQL
+        # login alongside it would be silently ignored by the driver, which
+        # is worse than refusing outright.
+        if env.get("DB_USER") or env.get("DB_PASS"):
+            raise ValueError("DB_TRUSTED_CONNECTION=yes uses the Windows identity; remove DB_USER and DB_PASS")
+    elif not env.get("DB_USER") or not env.get("DB_PASS"):
+        raise ValueError("DB_HOST requires DB_USER and DB_PASS, or DB_TRUSTED_CONNECTION=yes for Windows Authentication")
     driver = env.get("DB_DRIVER")
     if not driver:
         if drivers is None:
@@ -57,7 +67,10 @@ def load_workspace_env(root, *, environ=None, drivers=None):
     trust = env.get("DB_TRUST_SERVER_CERTIFICATE", "no").lower()
     if encrypt not in {"yes", "no"} or trust not in {"yes", "no"}:
         raise ValueError("DB_ENCRYPT and DB_TRUST_SERVER_CERTIFICATE must be yes or no")
-    values = {"DRIVER": driver, "SERVER": server, "DATABASE": env["DB_NAME"],
-              "UID": env["DB_USER"], "PWD": env["DB_PASS"], "Encrypt": encrypt,
-              "TrustServerCertificate": trust, "APP": "ETL Studio"}
+    values = {"DRIVER": driver, "SERVER": server, "DATABASE": env["DB_NAME"]}
+    if trusted == "yes":
+        values["Trusted_Connection"] = "yes"
+    else:
+        values["UID"], values["PWD"] = env["DB_USER"], env["DB_PASS"]
+    values["Encrypt"], values["TrustServerCertificate"], values["APP"] = encrypt, trust, "ETL Studio"
     env["ETL_SQL_MAIN"] = ";".join(key + "={" + value.replace("}", "}}") + "}" for key, value in values.items())

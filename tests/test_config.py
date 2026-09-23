@@ -40,6 +40,26 @@ class StartupConfigTests(unittest.TestCase):
         self.assertIn('DRIVER={ODBC Driver 17 for SQL Server}', env['ETL_SQL_MAIN'])
         self.assertIn('TrustServerCertificate={yes}', env['ETL_SQL_MAIN'])
 
+    def test_trusted_connection_needs_no_credentials(self):
+        env = self.load('DB_HOST=local\nDB_NAME=test\nDB_TRUSTED_CONNECTION=yes')
+        self.assertIn('Trusted_Connection={yes}', env['ETL_SQL_MAIN'])
+        self.assertNotIn('UID=', env['ETL_SQL_MAIN'])
+        self.assertNotIn('PWD=', env['ETL_SQL_MAIN'])
+
+    def test_trusted_connection_rejects_a_sql_login_alongside_it(self):
+        for extra in ('DB_USER=u', 'DB_PASS=p', 'DB_USER=u\nDB_PASS=p'):
+            with self.subTest(extra=extra):
+                with self.assertRaises(ValueError):
+                    self.load(f'DB_HOST=local\nDB_NAME=test\nDB_TRUSTED_CONNECTION=yes\n{extra}')
+
+    def test_trusted_connection_must_be_yes_or_no(self):
+        with self.assertRaises(ValueError):
+            self.load('DB_HOST=local\nDB_NAME=test\nDB_USER=u\nDB_PASS=p\nDB_TRUSTED_CONNECTION=maybe')
+
+    def test_without_trusted_connection_credentials_are_still_required(self):
+        with self.assertRaises(ValueError):
+            self.load('DB_HOST=local\nDB_NAME=test')
+
     def test_errors_never_include_values(self):
         for content in ('secret-not-an-assignment', 'DB_PASS="secret', 'DB_HOST=secret', 'DB_HOST=h\nDB_NAME=n\nDB_USER=u\nDB_PASS=secret\nDB_PORT=secret'):
             with self.subTest(content=content):
