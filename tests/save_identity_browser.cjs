@@ -37,10 +37,20 @@ const count=(page,name)=>page.evaluate(n=>saved.filter(item=>item.name===n).leng
     assert.equal(await count(page,NAME),before,"an unchanged link must not add a row");
     assert.deepEqual(asked,[],"no question while the link is intact");
 
-    // A reload is what used to cause the twins: the link is gone.
+    // A reload is what used to cause the twins: the link is gone. A saved
+    // pipeline now exists, so the app opens a blank draft rather than the demo -
+    // give it a valid source/columns before Save, since an empty draft can't
+    // pass validation regardless of the identity question being tested here.
     await page.reload();
-    await page.waitForFunction(()=>document.querySelector("#name").value.includes("Customers"));
+    await page.waitForFunction(()=>document.querySelector("#name").value==="Untitled pipeline");
     await page.waitForFunction(()=>saved.length>0);
+    await page.evaluate(()=>{document.querySelector("#advanced").open=true;});
+    await page.locator("#json").fill(JSON.stringify({version:2,name:"placeholder",
+      source:{kind:"csv",path:"diagnostics.csv",delimiter:";"},
+      columns:[{name:"note",source:"note",type:"string"}],
+      destination:{kind:"csv",delimiter:";"}}));
+    await page.getByRole("button",{name:"Apply definition",exact:true}).click();
+    await page.getByRole("status").filter({hasText:"Definition applied"}).waitFor();
     await page.locator("#name").fill(NAME);
     assert.equal(await page.locator("#save-hint").innerText(),"Saving creates a new saved pipeline.");
 
@@ -54,7 +64,15 @@ const count=(page,name)=>page.evaluate(n=>saved.filter(item=>item.name===n).leng
     // Cancelling or dismissing writes nothing at all: no branch of a dialog may
     // be the one that creates a duplicate.
     await page.reload();
+    await page.waitForFunction(()=>document.querySelector("#name").value==="Untitled pipeline");
     await page.waitForFunction(()=>saved.length>0);
+    await page.evaluate(()=>{document.querySelector("#advanced").open=true;});
+    await page.locator("#json").fill(JSON.stringify({version:2,name:"placeholder",
+      source:{kind:"csv",path:"diagnostics.csv",delimiter:";"},
+      columns:[{name:"note",source:"note",type:"string"}],
+      destination:{kind:"csv",delimiter:";"}}));
+    await page.getByRole("button",{name:"Apply definition",exact:true}).click();
+    await page.getByRole("status").filter({hasText:"Definition applied"}).waitFor();
     await page.locator("#name").fill(NAME);
     asked=[];answer=false;
     await page.getByRole("button",{name:"Save pipeline",exact:true}).click();

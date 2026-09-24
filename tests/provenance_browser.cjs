@@ -53,8 +53,9 @@ const URL=process.env.ETL_TEST_URL||"http://127.0.0.1:8768";
     assert.match(text,/independent of both/);
 
     // A reload forgets nothing: reopening the saved pipeline shows it again.
+    // A saved pipeline now exists, so the app opens a blank draft, not the demo.
     await page.reload();
-    await page.waitForFunction(()=>document.querySelector("#name").value.includes("Customers"));
+    await page.waitForFunction(()=>document.querySelector("#name").value==="Untitled pipeline");
     await page.locator("button.pipeline").filter({hasText:pipelineName}).click();
     await page.getByText(/Generated from template "Provenance target"/).waitFor();
 
