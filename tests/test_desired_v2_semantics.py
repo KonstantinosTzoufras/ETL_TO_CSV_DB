@@ -67,6 +67,27 @@ class DesiredV2AlreadySatisfiedTests(SemanticsTestCase):
         self.assertEqual(mapped("\na ", transforms=["linebreaks_to_space", "trim"]), ({"value": "a"}, {}))
         self.assertEqual(mapped("\na ", transforms=["trim", "linebreaks_to_space"]), ({"value": "a"}, {}))
 
+    def test_collapse_spaces_squeezes_and_trims_without_touching_line_breaks(self):
+        for value, expected in (
+            ("a   b", "a b"),
+            ("  a b  ", "a b"),
+            ("a\tb", "a b"),
+            ("a\r\nb", "a\nb"),  # A line break survives; CRLF normalizes to LF.
+            ("  a \r\n  b  ", "a \n b"),  # Spacing right beside it is untouched, only collapsed/trimmed like any other.
+            ("a \n\n b", "a \n\n b"),  # Two line breaks stay two; only run-of-the-mill spaces are squeezed.
+            ("no extra spacing", "no extra spacing"),
+        ):
+            with self.subTest(value=repr(value)):
+                self.assertEqual(mapped(value, type="string", transforms=["collapse_spaces"]),
+                                  ({"value": expected}, {}))
+
+    def test_collapse_spaces_composes_with_linebreaks_to_space(self):
+        # linebreaks_to_space turns the line break into a plain space, which
+        # is then just more spacing for collapse_spaces to squeeze away - the
+        # two transforms compose in this order to fully flatten a value.
+        self.assertEqual(mapped("a \r\n b", transforms=["linebreaks_to_space", "collapse_spaces"]),
+                          ({"value": "a b"}, {}))
+
     def test_dates_require_explicit_type_and_strict_format(self):
         self.assertEqual(mapped("2024-02-29"), ({"value": "2024-02-29"}, {}))
         self.assertEqual(mapped("2024-02-29", type="date"), ({"value": date(2024, 2, 29)}, {}))

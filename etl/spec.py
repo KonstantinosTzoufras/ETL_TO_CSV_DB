@@ -55,7 +55,7 @@ def source_spec(source):
 
 
 TYPES = {"string", "int", "decimal", "float", "bool", "date", "datetime"}
-TRANSFORMS = {"trim", "upper", "lower", "empty_to_null", "linebreaks_to_space"}
+TRANSFORMS = {"trim", "upper", "lower", "empty_to_null", "linebreaks_to_space", "collapse_spaces"}
 
 
 def destination_spec(destination, version):
