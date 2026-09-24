@@ -14,7 +14,6 @@ const assert=require('node:assert/strict');
   });
   await page.goto(process.env.ETL_TEST_URL||'http://127.0.0.1:8768');
   await page.waitForFunction(()=>document.querySelectorAll('[data-bulk-select]').length===120);
-  await page.locator('#bulk-transforms summary').click();
   const rows=page.locator('#columns tr'), chain=page.locator('#bulk-transforms .transform-control');
   const values=()=>page.locator('#columns [data-field=transforms]').evaluateAll(inputs=>inputs.map(e=>e.value));
   await page.locator('#bulk-text').click();
