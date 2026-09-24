@@ -156,6 +156,47 @@ class ExporterTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "collides"):
             self.export({"value": "\\N"}, kind="xlsx", null_value="\\N")
 
+    def test_xml_wraps_rows_and_escapes_reserved_characters(self):
+        import xml.etree.ElementTree as ET
+        path = self.export({"code": "003", "amount": Decimal("-1.50"), "note": "a & b <c>", "empty": ""}, kind="xml")
+        root = ET.fromstring(path.read_text(encoding="utf-8-sig"))
+        self.assertEqual(root.tag, "Rows")
+        row = list(root)
+        self.assertEqual(len(row), 1)
+        self.assertEqual(row[0].tag, "Row")
+        fields = {child.tag: child.text for child in row[0]}
+        self.assertEqual(fields, {"code": "003", "amount": "-1.50", "note": "a & b <c>", "empty": None})
+
+    def test_xml_null_collapses_to_empty_by_default_and_explicit_token_stays_distinct(self):
+        import xml.etree.ElementTree as ET
+        path = self.export({"null": None, "empty": ""}, kind="xml")
+        root = ET.fromstring(path.read_text(encoding="utf-8-sig"))
+        fields = {child.tag: child.text for child in list(root)[0]}
+        self.assertIsNone(fields["null"])
+        self.assertIsNone(fields["empty"])
+        path = self.export({"null": None, "empty": ""}, kind="xml", null_value="\\N")
+        root = ET.fromstring(path.read_text(encoding="utf-8-sig"))
+        fields = {child.tag: child.text for child in list(root)[0]}
+        self.assertEqual(fields["null"], "\\N")
+        self.assertIsNone(fields["empty"])
+
+    def test_xml_rejects_invalid_element_names_and_illegal_characters(self):
+        with self.assertRaisesRegex(ConfigError, "not a valid XML element name"):
+            self.export({"bad name": "x"}, kind="xml")
+        with self.assertRaisesRegex(ConfigError, "XML text cannot represent"):
+            self.export({"value": "a\x00b"}, kind="xml")
+
+    def test_xml_multiple_rows_and_binary_hex_format(self):
+        import xml.etree.ElementTree as ET
+        with ExitStack() as stack:
+            writer = OutputWriter(self.root, ["code", "raw"], {"kind": "xml", "binary_format": "hex"}, stack, version=2)
+            stack.callback(writer.finish)
+            writer.write_result(result({"code": "001", "raw": b"\x00\xff"}))
+            writer.write_result(result({"code": "002", "raw": b"\x01"}))
+        root = ET.fromstring(writer.path.read_text(encoding="utf-8-sig"))
+        rows = [{child.tag: child.text for child in row} for row in root]
+        self.assertEqual(rows, [{"code": "001", "raw": "0x00FF"}, {"code": "002", "raw": "0x01"}])
+
     def test_decimal_exponents_and_nonfinite_or_unknown_types(self):
         self.assertEqual(self.csv_rows(self.export({"d": Decimal("1.2300E+20")}))[1], ["1.2300E+20"])
         for value in (Decimal("NaN"), float("inf"), object()):

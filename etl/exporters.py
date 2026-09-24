@@ -3,6 +3,7 @@ import base64
 import csv
 import json
 import math
+import re
 from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
@@ -54,6 +55,15 @@ def scalar_text(value, *, binary_format="base64"):
     raise ConfigError(f"Unsupported export value type: {type(value).__name__}")
 
 
+_XML_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*")
+_XML_ILLEGAL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def xml_text(value):
+    require(not _XML_ILLEGAL.search(value), "Export value contains a character that XML text cannot represent")
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 class OutputWriter:
     """write_result(valid RowResult), finish(); memory bounded to one output row.
 
@@ -88,6 +98,12 @@ class OutputWriter:
             self.writer = csv.writer(handle, delimiter=destination.get("delimiter", ";"),
                                      quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
             self.writer.writerow([self._protect(name) for name in self.names])
+        elif self.kind == "xml":
+            for name in self.names:
+                require(_XML_NAME.fullmatch(name), f"Column name is not a valid XML element name: {name}")
+            self.root_tag, self.row_tag = "Rows", "Row"
+            self.xml_handle = stack.enter_context(self.path.open("w", encoding=self.encoding, newline=""))
+            self.xml_handle.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<{self.root_tag}>\n')
         else:
             try:
                 from openpyxl import Workbook, LXML
@@ -135,6 +151,9 @@ class OutputWriter:
         values = [self.format_value(row[name]) for name in self.names]
         if self.kind == "csv":
             self.writer.writerow(values)
+        elif self.kind == "xml":
+            fields = "".join(f"<{name}>{xml_text(value)}</{name}>" for name, value in zip(self.names, values))
+            self.xml_handle.write(f"  <{self.row_tag}>{fields}</{self.row_tag}>\n")
         else:
             if self.count and self.count % self.XLSX_DATA_ROWS == 0:
                 self.sheet = self.workbook.create_sheet()
@@ -146,6 +165,8 @@ class OutputWriter:
         if self.finished:
             return
         self.finished = True
+        if self.kind == "xml":
+            self.xml_handle.write(f"</{self.root_tag}>\n")
         if self.workbook:
             try:
                 self.workbook.save(self.path)

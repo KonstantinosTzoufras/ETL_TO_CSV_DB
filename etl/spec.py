@@ -61,7 +61,7 @@ TRANSFORMS = {"trim", "upper", "lower", "empty_to_null", "linebreaks_to_space"}
 def destination_spec(destination, version):
     require(type(version) is int and version in (1, 2), "Pipeline version must be 1 or 2")
     require(isinstance(destination, dict), "destination must be an object")
-    require(destination.get("kind") in {"csv", "xlsx", "sqlserver"}, "Destination must be csv, xlsx or sqlserver")
+    require(destination.get("kind") in {"csv", "xlsx", "xml", "sqlserver"}, "Destination must be csv, xlsx, xml or sqlserver")
     if destination["kind"] == "sqlserver":
         # A separate, deliberately small shape: no delimiter/encoding/null_value
         # concepts apply to a table, and split_by is refused by omission - one
