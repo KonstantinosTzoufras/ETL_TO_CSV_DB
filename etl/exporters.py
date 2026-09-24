@@ -29,7 +29,7 @@ def excel_safe(value):
     return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")) else value
 
 
-def scalar_text(value):
+def scalar_text(value, *, binary_format="base64"):
     """V2 non-null output formats, independent of CSV/XLSX cell quoting."""
     if isinstance(value, str):
         return value
@@ -48,6 +48,8 @@ def scalar_text(value):
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, bytes):
+        if binary_format == "hex":
+            return "0x" + value.hex().upper()
         return "base64:" + base64.b64encode(value).decode("ascii")
     raise ConfigError(f"Unsupported export value type: {type(value).__name__}")
 
@@ -75,6 +77,7 @@ class OutputWriter:
         # wants NULL and empty text kept distinct in the file sets an
         # explicit null_value (e.g. "\\N") itself.
         self.null_value = destination.get("null_value", "")
+        self.binary_format = destination.get("binary_format", "base64")
         self.formula_policy = destination.get("formula_policy", "apostrophe" if version == 1 else "preserve")
         self.protected_null = self._protect(self.null_value)
         self.workbook = None
@@ -104,7 +107,7 @@ class OutputWriter:
         null = self.protected_null
         if value is None:
             return null
-        rendered = scalar_text(value)
+        rendered = scalar_text(value, binary_format=self.binary_format)
         # Native numbers remain numeric representations (e.g. -12), not
         # formula-like strings. String values and bytes get the selected policy.
         if isinstance(value, (str, bytes)):

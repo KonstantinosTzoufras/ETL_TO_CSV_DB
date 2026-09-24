@@ -70,12 +70,13 @@ def destination_spec(destination, version):
         return
     allowed = {"kind", "delimiter", "split_by"}
     if version == 2:
-        allowed |= {"encoding", "null_value", "formula_policy"}
+        allowed |= {"encoding", "null_value", "formula_policy", "binary_format"}
     keys(destination, allowed, "destination")
     delimiter = destination.get("delimiter", ";")
     require(isinstance(delimiter, str) and len(delimiter) == 1 and delimiter not in '\r\n\x00"', "Choose a single export delimiter")
     require(destination.get("encoding", "utf-8-sig") in ("utf-8", "utf-8-sig"), "Export encoding must be utf-8 or utf-8-sig")
     require(isinstance(destination.get("null_value", ""), str), "null_value must be a string (empty explicitly permits NULL/empty collapse)")
+    require(destination.get("binary_format", "base64") in ("base64", "hex"), "binary_format must be base64 or hex")
     require(destination.get("formula_policy", "preserve") in ("preserve", "apostrophe"), "formula_policy must be preserve or apostrophe")
     if "split_by" in destination:
         require(isinstance(destination["split_by"], str) and destination["split_by"].strip() and len(destination["split_by"]) <= 128,

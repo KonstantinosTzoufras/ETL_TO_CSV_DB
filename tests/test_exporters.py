@@ -62,6 +62,10 @@ class ExporterTests(unittest.TestCase):
         self.assertIsNone(values["null"])
         self.assertEqual(values["code"], "003")
 
+    def test_bytes_render_as_uppercase_hex_when_binary_format_is_hex(self):
+        path = self.export({"rowversion": b"\x00\x00\x00\x04\xa5\x1b\x26\x01"}, binary_format="hex")
+        self.assertEqual(self.csv_rows(path)[1], ["0x00000004A51B2601"])
+
     def test_utf8_delimiter_quoting_and_record_terminator(self):
         path = self.export({"κεφαλίδα": 'Α, "Β"\nΓ'}, encoding="utf-8", delimiter=",")
         self.assertEqual(path.read_bytes(), 'κεφαλίδα\r\n"Α, ""Β""\nΓ"\r\n'.encode("utf-8"))
