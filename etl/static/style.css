@@ -900,16 +900,34 @@ footer {
   margin: 6px 0;
 }
 
-/* COLUMN PICKER
+/* MAPPING TOOLS
    -------------
-   Explicit source-column selection, separate from processing. */
-#column-picker {
+   Shared card around the column picker and the bulk field actions below
+   it: two collapsible sub-sections that read as one tool panel rather
+   than two unrelated boxes with a gap between them. */
+#mapping-tools {
   padding: 16px;
   margin: 16px 0;
   background: #f5f9f6;
   border: 1px solid #d4ded6;
   border-radius: 8px;
 }
+#mapping-tools #mapping-guidance {
+  margin: 16px 0 0;
+}
+#mapping-tools > #bulk-transforms {
+  margin-top: 16px;
+}
+/* A divider between the two sub-sections, but only when the column picker
+   above it is actually showing something to divide from. */
+#column-picker:not([hidden]) + #mapping-guidance {
+  border-top: 1px solid #d4ded6;
+  padding-top: 16px;
+}
+
+/* COLUMN PICKER
+   -------------
+   Explicit source-column selection, separate from processing. */
 .picker-actions {
   display: flex;
   flex-wrap: wrap;
@@ -995,12 +1013,6 @@ footer {
 }
 #columns details.transform-control[open] .transform-chain {
   margin-top: 8px;
-}
-#bulk-transforms {
-  border: 1px solid #dfe7e1;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 12px;
 }
 #bulk-transforms .transform-control {
   min-width: 0;

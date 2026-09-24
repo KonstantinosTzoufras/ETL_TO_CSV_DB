@@ -493,65 +493,69 @@
               </p>
             </details>
           </div>
-          <details id="column-picker" hidden open>
-            <summary>Choose source columns</summary>
-            <p id="picker-source" class="hint"></p>
-            <label
-              >Search source columns<input id="column-search" type="search"
-            /></label>
-            <div class="picker-actions">
-              <button id="columns-all">Select all columns</button
-              ><button id="columns-clear">Clear selection</button
-              ><button id="columns-add" class="primary">
-                Add selected columns</button
-              ><button id="columns-add-all">Add all unused columns</button>
-            </div>
-            <p id="column-selection-count" aria-live="polite"></p>
-            <div id="column-choices"></div>
-            <p class="hint">
-              Select all includes columns hidden by search. Added columns stay
-              checked; untick one to remove its mappings after confirmation.
-              Clear selection clears pending additions only. New fields start as
-              string with no rules.
+          <div id="mapping-tools">
+            <details id="column-picker" hidden open>
+              <summary>Choose source columns</summary>
+              <p id="picker-source" class="hint"></p>
+              <label
+                >Search source columns<input id="column-search" type="search"
+              /></label>
+              <div class="picker-actions">
+                <button id="columns-all">Select all columns</button
+                ><button id="columns-clear">Clear selection</button
+                ><button id="columns-add" class="primary">
+                  Add selected columns</button
+                ><button id="columns-add-all">Add all unused columns</button>
+              </div>
+              <p id="column-selection-count" aria-live="polite"></p>
+              <div id="column-choices"></div>
+              <p class="hint">
+                Select all includes columns hidden by search. Added columns
+                stay checked; untick one to remove its mappings after
+                confirmation. Clear selection clears pending additions only.
+                New fields start as string with no rules.
+              </p>
+            </details>
+            <p id="mapping-guidance" class="hint">
+              Choose a dataset above to load its columns, then add the fields
+              you want. Add field creates an individual output or constant.
             </p>
-          </details>
-          <p id="mapping-guidance" class="hint">
-            Choose a dataset above to load its columns, then add the fields you
-            want. Add field creates an individual output or constant.
-          </p>
-          <details id="bulk-transforms" open>
-            <summary>Bulk actions on selected fields</summary>
-            <div class="bulk-actions" id="mapping-selection">
-              <button type="button" id="bulk-all">Select all fields</button
-              ><button type="button" id="bulk-text">
-                Select string fields</button
-              ><button type="button" id="bulk-none">
-                Deselect all fields</button
-              ><button type="button" id="bulk-remove" disabled>
-                Remove selected fields</button
-              ><span id="bulk-count" role="status">0 fields selected</span>
-            </div>
-            <label
-              >Ordered transforms for selected fields<input
-                id="bulk-chain"
-                value=""
-            /></label>
-            <div class="bulk-actions">
-              <button type="button" id="bulk-append">Append transforms</button
-              ><button type="button" id="bulk-replace">
-                Replace transforms</button
-              ><button type="button" id="bulk-clear">Clear transforms</button
-              ><button type="button" id="bulk-undo" disabled>
-                Undo last bulk change
-              </button>
-            </div>
-            <p class="hint">
-              Select fields using the checkboxes beside their output names, or
-              the buttons above. Append keeps existing transforms first;
-              replace overwrites their chain. Only selected fields change.
-            </p>
-            <p id="bulk-status" role="status"></p>
-          </details>
+            <details id="bulk-transforms" open>
+              <summary>Bulk actions on selected fields</summary>
+              <div class="bulk-actions" id="mapping-selection">
+                <button type="button" id="bulk-all">Select all fields</button
+                ><button type="button" id="bulk-text">
+                  Select string fields</button
+                ><button type="button" id="bulk-none">
+                  Deselect all fields</button
+                ><button type="button" id="bulk-remove" disabled>
+                  Remove selected fields</button
+                ><span id="bulk-count" role="status">0 fields selected</span>
+              </div>
+              <label
+                >Ordered transforms for selected fields<input
+                  id="bulk-chain"
+                  value=""
+              /></label>
+              <div class="bulk-actions">
+                <button type="button" id="bulk-append">
+                  Append transforms</button
+                ><button type="button" id="bulk-replace">
+                  Replace transforms</button
+                ><button type="button" id="bulk-clear">
+                  Clear transforms</button
+                ><button type="button" id="bulk-undo" disabled>
+                  Undo last bulk change
+                </button>
+              </div>
+              <p class="hint">
+                Select fields using the checkboxes beside their output names,
+                or the buttons above. Append keeps existing transforms first;
+                replace overwrites their chain. Only selected fields change.
+              </p>
+              <p id="bulk-status" role="status"></p>
+            </details>
+          </div>
           <div id="binding-picker" hidden>
             <h3 id="binding-title">Choose source column</h3>
             <label
