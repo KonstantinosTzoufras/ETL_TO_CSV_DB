@@ -28,15 +28,18 @@ async function action(fn) {
   finally { busy=false; buttons.forEach(([button,disabled])=>button.disabled=disabled); window.EditorControls?.refreshBulk(); window.TemplateState?.refresh(); }
 }
 function sourceFields() {
-  const sql=$("source-kind").value==="sqlserver", query=$("source-kind").value==="sqlserver_query";
-  document.querySelectorAll(".csv").forEach(el=>el.hidden=sql||query);
+  const kind=$("source-kind").value, sql=kind==="sqlserver", query=kind==="sqlserver_query", csv=kind==="csv";
+  document.querySelectorAll(".file-path").forEach(el=>el.hidden=sql||query);
+  document.querySelectorAll(".csv").forEach(el=>el.hidden=!csv);
   $("query-editor").hidden=!query; $("discover-browse").hidden=query;
   document.querySelectorAll(".sql").forEach(el=>el.hidden=!sql);
-  $("source-note").textContent=query?"Query execution requires an administrator-approved read-only connection.":sql?"Use a read-only SQL Server connection configured on this computer. See README for setup.":"Use a CSV inside the project folder. The demo is ready to preview.";
+  $("source-note").textContent=query?"Query execution requires an administrator-approved read-only connection.":sql?"Use a read-only SQL Server connection configured on this computer. See README for setup.":kind==="xml"?"Use an XML file inside the project folder. Each direct child of the document root is one row; that row's own child elements are its columns.":"Use a CSV inside the project folder. The demo is ready to preview.";
 }
 function source() {
   if($("source-kind").value==="sqlserver_query")return querySource();
-  return $("source-kind").value==="csv" ? {kind:"csv",path:$("source-path").value,delimiter:$("source-delimiter").value,encoding:$("encoding").value} : {kind:"sqlserver",connection_env:$("connection").value,schema:$("schema").value,table:$("table").value};
+  if($("source-kind").value==="csv")return {kind:"csv",path:$("source-path").value,delimiter:$("source-delimiter").value,encoding:$("encoding").value};
+  if($("source-kind").value==="xml")return {kind:"xml",path:$("source-path").value};
+  return {kind:"sqlserver",connection_env:$("connection").value,schema:$("schema").value,table:$("table").value};
 }
 function read(options={}) {
   if(typeof templateIsPending==="function" && templateIsPending() && !options.allowTemplateDraft) throw new Error("Resolve template bindings and generate the pipeline first.");

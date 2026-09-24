@@ -35,6 +35,11 @@ def source_spec(source):
             codecs.lookup(source.get("encoding", "utf-8-sig"))
         except (LookupError, TypeError):
             raise ConfigError("Unknown CSV encoding") from None
+    elif kind == "xml":
+        # No delimiter/encoding concept: the file's own <?xml encoding?>
+        # declaration governs how it is read, exactly as any XML parser would.
+        keys(source, {"kind", "path"}, "XML source")
+        require(isinstance(source.get("path"), str) and source["path"].strip(), "XML path is required")
     elif kind == "sqlserver_query":
         from .queries import query_from_dict
         keys(source, {"kind", "connection_env", "query"}, "SQL query source")
@@ -46,7 +51,7 @@ def source_spec(source):
         for key in ("schema", "table"):
             require(isinstance(source.get(key), str) and 0 < len(source[key]) <= 128 and "\x00" not in source[key], f"SQL {key} is required (maximum 128 characters)")
     else:
-        raise ConfigError("Source kind must be csv or sqlserver")
+        raise ConfigError("Source kind must be csv, xml or sqlserver")
 
 
 TYPES = {"string", "int", "decimal", "float", "bool", "date", "datetime"}

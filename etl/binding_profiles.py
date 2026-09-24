@@ -28,7 +28,7 @@ def source_key(source):
     """
     source_spec(source)
     kind = source["kind"]
-    if kind == "csv":
+    if kind in ("csv", "xml"):
         return {"kind": kind, "path": source["path"]}
     if kind == "sqlserver":
         return {"kind": kind, "connection_env": source["connection_env"],
@@ -48,7 +48,7 @@ def key_text(key):
 def default_name(source):
     """A name the operator will recognise, before they rename it."""
     key = source_key(source)
-    if key["kind"] == "csv":
+    if key["kind"] in ("csv", "xml"):
         return key["path"].replace("\\", "/").rsplit("/", 1)[-1][:MAX_NAME]
     connection = key["connection_env"].removeprefix("ETL_SQL_")
     if key["kind"] == "sqlserver":

@@ -125,7 +125,7 @@ $env:ETL_SQL_MAIN = 'DRIVER={ODBC Driver 18 for SQL Server};SERVER=YOUR_SERVER;D
 | Αρχείο | Ευθύνη |
 |---|---|
 | `etl/spec.py` | Έλεγχος του versioned συμβολαίου της ροής |
-| `etl/sources.py` | CSV και SQL Server adapters |
+| `etl/sources.py` | CSV, XML και SQL Server adapters |
 | `etl/engine.py` | Μετασχηματισμοί, κανόνες, preview και exports |
 | `etl/store.py` | SQLite για presets και ιστορικό |
 | `etl/web.py` | Τοπικό HTTP API και background runs |

@@ -87,8 +87,8 @@ def preflight(pipeline, root, output_root, *, steps=None):
         for column in pipeline_to_dict(step_pipeline(pipeline,step))['columns']:
             source=column.get('lookup',{}).get('source')
             if not source:continue
-            if source['kind']=='csv':
-                path=input_path(root,source['path'])
+            if source['kind'] in ('csv','xml'):
+                path=input_path(root,source['path'],extension='.xml' if source['kind']=='xml' else '.csv')
                 require(not path.is_relative_to(Path(output_root).resolve()), 'Run outputs cannot be lookup inputs')
             else:
                 require(source['kind']=='sqlserver' and source['connection_env']==pipeline.connection_env, 'Only static lookups on the shared connection are supported')

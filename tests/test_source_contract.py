@@ -11,7 +11,7 @@ from uuid import UUID
 
 from etl.engine import execute
 from etl.models import SourceColumn, SourceDefinition, SourceRow
-from etl.sources import CsvSource, Source, SqlServerSource, create_source, inspect_source, open_source
+from etl.sources import CsvSource, Source, SqlServerSource, XmlSource, create_source, inspect_source, open_source
 from etl.spec import ConfigError
 
 
@@ -218,6 +218,115 @@ class CsvSourceContractTests(unittest.TestCase):
                 first["code"] = "changed"
         self.assertTrue(handles[0].closed)
         self.assertEqual(list(rows), [])
+
+
+class XmlSourceContractTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.path = self.root / "input.xml"
+        self.spec = {"kind": "xml", "path": "input.xml"}
+
+    def write(self, text, encoding="utf-8"):
+        self.path.write_bytes(text.encode(encoding))
+
+    def adapter(self):
+        return XmlSource(self.spec, self.root)
+
+    @contextmanager
+    def tracked_files(self):
+        handles = []
+        original_open = Path.open
+
+        def track(path, *args, **kwargs):
+            handle = original_open(path, *args, **kwargs)
+            handles.append(handle)
+            return handle
+
+        with patch.object(Path, "open", track):
+            yield handles
+
+    def test_common_interface_and_direct_children_become_rows_and_columns(self):
+        self.write("<Records><Row><code>003</code><name>Foo</name></Row>"
+                    "<Row><code>004</code><name>Bar</name></Row></Records>")
+        source = create_source(self.spec, self.root)
+        self.assertIsInstance(source, Source)
+        self.assertIsInstance(source, XmlSource)
+        self.assertEqual(source.read_schema(), (SourceColumn("code", native_type="str"), SourceColumn("name", native_type="str")))
+        with source.open() as stream:
+            rows = list(stream)
+        self.assertEqual([row.values for row in rows], [{"code": "003", "name": "Foo"}, {"code": "004", "name": "Bar"}])
+        self.assertEqual([row.number for row in rows], [1, 2])
+
+    def test_schema_preserves_first_row_element_order(self):
+        self.write("<Root><Row><b>1</b><a>2</a></Row></Root>")
+        schema = self.adapter().read_schema()
+        self.assertEqual([column.name for column in schema], ["b", "a"])
+
+    def test_namespaces_are_stripped_to_local_names(self):
+        self.write('<r:Root xmlns:r="urn:x"><r:Row><r:code>1</r:code></r:Row></r:Root>')
+        schema = self.adapter().read_schema()
+        self.assertEqual([column.name for column in schema], ["code"])
+        with self.adapter().open() as stream:
+            self.assertEqual(next(stream.rows).values, {"code": "1"})
+
+    def test_empty_element_is_an_empty_string_not_null(self):
+        self.write("<Root><Row><code>003</code><name/></Row></Root>")
+        with self.adapter().open() as stream:
+            self.assertEqual(next(stream.rows).values, {"code": "003", "name": ""})
+
+    def test_missing_or_extra_structure_raises_instead_of_padding(self):
+        for body, message in (
+            ("<Row><a>1</a></Row>", "XML record 2: expected 2 elements, got 1"),
+            ("<Row><a>1</a><b>2</b><c>3</c></Row>", "XML record 2: unexpected element <c>"),
+        ):
+            with self.subTest(body=body):
+                self.write(f"<Root><Row><a>x</a><b>y</b></Row>{body}</Root>")
+                with self.tracked_files() as handles:
+                    with self.assertRaisesRegex(ConfigError, message):
+                        with self.adapter().open() as stream:
+                            list(stream)
+                self.assertTrue(handles[0].closed)
+
+    def test_no_row_elements_or_malformed_xml_close_file(self):
+        for text in ("<Root></Root>", "<Root", ""):
+            with self.subTest(text=text):
+                self.write(text)
+                with self.tracked_files() as handles, self.assertRaises(ConfigError):
+                    self.adapter().read_schema()
+                self.assertTrue(handles[0].closed)
+
+    def test_path_and_configuration_errors(self):
+        for spec in ({"kind": "xml", "path": "missing.xml"},
+                     {"kind": "xml", "path": "../outside.xml"},
+                     {"kind": "xml", "path": "input.txt"},
+                     {"kind": "xml", "path": "input.xml", "delimiter": ";"}):
+            with self.subTest(spec=spec), self.assertRaises(ConfigError):
+                XmlSource(spec, self.root).read_schema()
+
+    def test_context_exit_closes_iterator_and_file_for_unused_partial_and_full_reads(self):
+        self.write("<Root><Row><code>1</code></Row><Row><code>2</code></Row><Row><code>3</code></Row></Root>")
+        for consumed in (0, 1, 3):
+            with self.subTest(consumed=consumed), self.tracked_files() as handles:
+                with self.adapter().open() as stream:
+                    for _ in range(consumed):
+                        next(stream.rows)
+                    if consumed == 3:
+                        self.assertEqual(list(stream.rows), [])
+                self.assertTrue(handles[0].closed)
+                self.assertEqual(list(stream.rows), [])
+
+    def test_legacy_api_retains_headers_and_mutable_dicts_without_position_keys(self):
+        self.write("<Root><Row><code>003</code></Row></Root>")
+        self.assertEqual(inspect_source(self.spec, self.root), ["code"])
+        with self.tracked_files() as handles:
+            with open_source(self.spec, self.root) as (headers, rows):
+                first = next(rows)
+                self.assertEqual(headers, ["code"])
+                self.assertIsInstance(first, dict)
+                self.assertEqual(first, {"code": "003"})
+        self.assertTrue(handles[0].closed)
 
 
 class SqlServerSourceContractTests(unittest.TestCase):

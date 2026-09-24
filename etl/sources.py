@@ -5,8 +5,10 @@ Consume rows inside the open() context; exiting it closes both the iterator and
 its resources, including when a consumer stops early or raises an exception.
 """
 import csv
+import itertools
 import os
 import sys
+import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
@@ -17,11 +19,11 @@ from .models import SourceColumn, SourceDefinition, SourceRow
 from .spec import ConfigError, require, source_spec
 
 
-def input_path(root, name):
+def input_path(root, name, extension=".csv"):
     path = (Path(root) / name).resolve()
     require(path.is_relative_to(Path(root).resolve()), "Input files must be inside the workspace")
-    require(path.suffix.lower() == ".csv", "CSV sources must use a .csv file")
-    require(path.is_file(), f"CSV file not found: {name}")
+    require(path.suffix.lower() == extension, f"{extension[1:].upper()} sources must use a {extension} file")
+    require(path.is_file(), f"{extension[1:].upper()} file not found: {name}")
     return path
 
 
@@ -97,6 +99,79 @@ class CsvSource:
             require(len(values) == len(headers), f"CSV record {csv_record}: expected {len(headers)} fields, got {len(values)}")
             number += 1
             yield SourceRow(number, dict(zip(headers, values)), line_start, reader.line_num)
+
+
+def _local_tag(tag):
+    return tag.rsplit("}", 1)[-1] if tag.startswith("{") else tag
+
+
+class XmlSource:
+    """Flat XML: every direct child of the document root is one row, and that
+    row element's own direct children are its columns (tag name -> text).
+
+    Deliberately simple for a first cut: no attributes, no nested/repeating
+    structure below the row (a SAP-style multi-level export needs a real
+    design decision - which level is "the row" - before it can be supported).
+    """
+
+    def __init__(self, definition, root):
+        self.definition = _definition(definition, "xml")
+        self.root = Path(root).resolve()
+
+    def read_schema(self) -> tuple[SourceColumn, ...]:
+        with self.open() as stream:
+            return stream.schema
+
+    @contextmanager
+    def open(self) -> Iterator[SourceStream]:
+        options = self.definition.options
+        path = input_path(self.root, options["path"], extension=".xml")
+        handle = path.open("rb")
+        try:
+            elements = self._row_elements(handle)
+            try:
+                first = next(elements)
+            except StopIteration:
+                raise ConfigError("XML source has no row elements") from None
+            headers = checked_headers([_local_tag(child.tag) for child in first])
+            schema = tuple(SourceColumn(name, native_type="str") for name in headers)
+            with closing(self._rows(itertools.chain([first], elements), headers)) as rows:
+                yield SourceStream(schema, rows)
+        finally:
+            handle.close()
+
+    @staticmethod
+    def _row_elements(handle):
+        # Every direct child of the root, streamed without holding the whole
+        # document in memory: a stack tracks depth since iterparse gives no
+        # parent links, and each row is cleared once consumed.
+        try:
+            context = ET.iterparse(handle, events=("start", "end"))
+            stack = []
+            for event, element in context:
+                if event == "start":
+                    stack.append(element)
+                    continue
+                stack.pop()
+                if len(stack) == 1:
+                    yield element
+                    element.clear()
+        except ET.ParseError:
+            raise ConfigError("XML source is not well-formed") from None
+
+    @staticmethod
+    def _rows(elements, headers):
+        number = 0
+        for element in elements:
+            number += 1
+            values = {}
+            for child in element:
+                name = _local_tag(child.tag)
+                require(name not in values, f"XML record {number}: duplicate element <{name}>")
+                require(name in headers, f"XML record {number}: unexpected element <{name}>")
+                values[name] = child.text or ""
+            require(len(values) == len(headers), f"XML record {number}: expected {len(headers)} elements, got {len(values)}")
+            yield SourceRow(number, values)
 
 
 SQL_ERROR = "SQL Server operation failed. Check connection settings, driver, table permissions and query timeout."
@@ -206,9 +281,11 @@ def create_source(spec, root, batch_size=1000) -> Source:
         return SqlServerQuerySource(spec, batch_size=batch_size)
     if kind == "csv":
         return CsvSource(spec, root)
+    if kind == "xml":
+        return XmlSource(spec, root)
     if kind == "sqlserver":
         return SqlServerSource(spec, batch_size=batch_size)
-    raise ConfigError("Source kind must be csv or sqlserver")
+    raise ConfigError("Source kind must be csv, xml or sqlserver")
 
 
 @contextmanager
