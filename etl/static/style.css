@@ -1015,15 +1015,6 @@ footer {
 .bulk-actions button {
   padding: 7px 10px;
 }
-.bulk-actions .bulk-chain-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-}
-.bulk-actions .bulk-chain-label input {
-  width: 220px;
-}
 #columns [data-bulk-select] {
   min-width: 0;
   width: 17px;
