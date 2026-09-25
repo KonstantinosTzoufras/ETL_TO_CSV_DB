@@ -47,6 +47,7 @@ class OrderedRemoteStepTests(unittest.TestCase):
         self.assertEqual(result['status'],'completed')
         self.assertEqual(result['steps'][0]['processed'],25)
         self.assertEqual(len(sessions),1)  # The worker opened the only SQL connection, not the coordinator.
+        self.assertEqual(result['steps'][0]['resolved_target'],'TestWorker')
 
     def test_auto_picks_the_idle_worker(self):
         spec=ordered(count=1);spec['steps'][0]['execution_target']='auto'
@@ -54,6 +55,8 @@ class OrderedRemoteStepTests(unittest.TestCase):
             result=self.run_steps(spec)
         self.assertEqual(result['status'],'completed')
         self.assertEqual(len(sessions),1)
+        self.assertEqual(result['steps'][0]['execution_target'],'auto')
+        self.assertEqual(result['steps'][0]['resolved_target'],'TestWorker')
 
     def test_auto_falls_back_to_server_when_no_worker_is_configured(self):
         spec=ordered(count=1);spec['steps'][0]['execution_target']='auto'

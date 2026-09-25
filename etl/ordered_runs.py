@@ -36,6 +36,10 @@ def initial_report(spec, run_id):
             'steps':[{'id':s['id'],'name':s['name'],'position':i,'status':'pending',
                       'started':None,'finished':None,'processed':0,'valid':0,'invalid':0,
                       'counts_basis':'processed_rows','directory':None,'output':None,
+                      # What was declared (spec) vs what "auto" actually picked
+                      # at the moment this step started - only meaningful once
+                      # status leaves 'pending'.
+                      'execution_target':s.get('execution_target','server'),'resolved_target':None,
                       'diagnostics':None,'partial_directory':None,'error':None}
                      for i,s in enumerate(spec['steps'],1)]}
 
@@ -135,6 +139,8 @@ def coordinate(spec, root, output_root, run_id, *, persist):
             preflight(pipeline,root,output_root,steps=(step,))
             single=pipeline_to_dict(step_pipeline(pipeline,step))
             chosen=resolve_target(step)
+            entry['resolved_target']=chosen
+            publish()
             if chosen=='server':
                 work.mkdir(parents=True,exist_ok=False)
                 def observe(row):
