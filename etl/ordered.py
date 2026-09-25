@@ -30,11 +30,16 @@ def step_pipeline(pipeline, step):
 
 
 def from_dict(spec):
-    keys(spec, {'kind','format_version','name','connection_env','failure_policy','steps'}, 'ordered pipeline')
+    keys(spec, {'kind','format_version','name','connection_env','failure_policy','max_parallel_steps','steps'}, 'ordered pipeline')
     require(spec.get('kind') == KIND and type(spec.get('format_version')) is int and spec['format_version'] == 1, 'Unsupported ordered pipeline format')
     require(isinstance(spec.get('name'),str) and 0 < len(spec['name'].strip()) <= 120, 'Pipeline name must contain 1-120 characters')
     policy=spec.get('failure_policy','stop')
     require(isinstance(policy,str) and policy in ('stop','continue'), 'Failure policy must be stop or continue')
+    # Every step shares one connection_env, so this bounds how many
+    # simultaneous connections/queries the target SQL Server sees from this
+    # run - default 1 keeps today's strictly one-at-a-time behavior.
+    max_parallel=spec.get('max_parallel_steps',1)
+    require(type(max_parallel) is int and 1 <= max_parallel <= 8, 'max_parallel_steps must be an integer between 1 and 8')
     raw_steps=spec.get('steps')
     require(isinstance(raw_steps,list) and 1 <= len(raw_steps) <= 20, 'Choose 1-20 ordered steps')
     steps=[]; seen=set()
@@ -56,7 +61,7 @@ def from_dict(spec):
             if lookup and lookup['kind']=='sqlserver':
                 require(lookup['connection_env']==spec['connection_env'], 'SQL lookups must use the shared connection')
         steps.append(QueryExportStep(identifier,single.name,single.source.options['query'],single.columns,single.destination,single.version))
-    return OrderedQueryPipeline(spec['name'],spec['connection_env'],tuple(steps),policy)
+    return OrderedQueryPipeline(spec['name'],spec['connection_env'],tuple(steps),policy,max_parallel_steps=max_parallel)
 
 
 def to_dict(pipeline):
@@ -68,7 +73,8 @@ def to_dict(pipeline):
         steps.append({'id':step.id,'name':step.name,'query':single['source']['query'],
                       'processing_version':single['version'],'columns':single['columns'],'destination':single['destination']})
     spec={'kind':KIND,'format_version':pipeline.format_version,'name':pipeline.name,
-          'connection_env':pipeline.connection_env,'failure_policy':pipeline.failure_policy,'steps':steps}
+          'connection_env':pipeline.connection_env,'failure_policy':pipeline.failure_policy,
+          'max_parallel_steps':pipeline.max_parallel_steps,'steps':steps}
     from_dict(spec)
     return spec
 

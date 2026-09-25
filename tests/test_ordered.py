@@ -2,6 +2,8 @@
 import copy
 import json
 import os
+import threading
+import time
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 import tempfile
@@ -26,7 +28,7 @@ def ordered(policy='stop', count=3):
         steps.append({'id':identifier,'name':identifier.title(),'query':single['source']['query'],
                       'processing_version':2,'columns':single['columns'],'destination':single['destination']})
     return {'kind':'ordered_query_export','format_version':1,'name':'Ordered extracts',
-            'connection_env':REFERENCE,'failure_policy':policy,'steps':steps}
+            'connection_env':REFERENCE,'failure_policy':policy,'max_parallel_steps':1,'steps':steps}
 
 
 class OrderedTests(unittest.TestCase):
@@ -157,6 +159,82 @@ class OrderedTests(unittest.TestCase):
         csv_path=self.output/'old.csv';csv_path.parent.mkdir(parents=True);csv_path.write_text('Code\n003\n')
         spec['steps'][0]['columns'][0]['lookup']['source']={'kind':'csv','path':'data/runs/old.csv'}
         with fake_sql(),self.assertRaisesRegex(ValueError,'Run outputs'):preflight(from_dict(spec),self.root,self.output)
+
+    def test_max_parallel_steps_defaults_and_bounds(self):
+        spec=ordered();del spec['max_parallel_steps']
+        self.assertEqual(from_dict(spec).max_parallel_steps,1)
+        for value in (0,9,1.5,'2',None):
+            spec=ordered();spec['max_parallel_steps']=value
+            with self.subTest(value=value),self.assertRaises(ValueError):from_dict(spec)
+        for value in (1,8):
+            spec=ordered();spec['max_parallel_steps']=value
+            self.assertEqual(from_dict(spec).max_parallel_steps,value)
+
+    def test_parallel_steps_actually_overlap_in_wall_clock_time(self):
+        # Record each step's own [start,end) sleep window and check for a real
+        # overlap directly, instead of an absolute wall-clock budget - this
+        # machine's scheduling overhead varies too much for a fixed threshold
+        # to be a reliable proxy for "did these actually run concurrently".
+        spec=ordered();spec['max_parallel_steps']=3
+        windows=[]
+        with fake_sql() as (sessions,connect):
+            base=connect.side_effect
+            slept=set()
+            def slow(*args,**kwargs):
+                connection=base(*args,**kwargs)
+                cursor=sessions[-1][1]
+                original=cursor.fetchmany.side_effect
+                def slow_fetchmany(size):
+                    if id(cursor) not in slept:
+                        slept.add(id(cursor))
+                        start=time.monotonic();time.sleep(0.15);windows.append((start,time.monotonic()))
+                    return original(size)
+                cursor.fetchmany.side_effect=slow_fetchmany
+                return connection
+            connect.side_effect=slow
+            result=self.run_steps(spec)
+        self.assertEqual(result['status'],'completed')
+        self.assertEqual(len(sessions),3)
+        self.assertEqual(len(windows),3)
+        overlapping=any(a_start<b_end and b_start<a_end
+                        for i,(a_start,a_end) in enumerate(windows)
+                        for b_start,b_end in windows[i+1:])
+        self.assertTrue(overlapping,f'No two step sleep windows overlapped: {windows}')
+
+    def test_parallel_stop_lets_inflight_step_finish_but_skips_unstarted(self):
+        # Steps 1 and 2 are dispatched together (max_parallel_steps=2) and
+        # race to open their connection first - which of them lands first is
+        # legitimately nondeterministic, so this rigs "one slow-but-ok, one
+        # fast-fail" by arrival order rather than by assuming step identity,
+        # and only asserts the aggregate outcome, not which position got which.
+        spec=ordered(count=3);spec['max_parallel_steps']=2
+        assigned=[]
+        assign_lock=threading.Lock()
+        with fake_sql() as (sessions,connect):
+            base=connect.side_effect
+            def rigged(*args,**kwargs):
+                connection=base(*args,**kwargs)
+                cursor=sessions[-1][1]
+                with assign_lock:
+                    role='slow' if len(assigned)==0 else 'fail' if len(assigned)==1 else 'normal'
+                    assigned.append(role)
+                if role=='slow':
+                    original=cursor.fetchmany.side_effect
+                    def slow_fetchmany(size):
+                        time.sleep(0.2);return original(size)
+                    cursor.fetchmany.side_effect=slow_fetchmany
+                elif role=='fail':
+                    cursor.fetchmany.side_effect=pyodbc.Error('HYT00','synthetic step failure')
+                return connection
+            connect.side_effect=rigged
+            result=self.run_steps(spec)
+        statuses=[s['status'] for s in result['steps']]
+        self.assertEqual(result['status'],'failed')
+        self.assertEqual(len(sessions),2)  # The third connection was never opened.
+        self.assertEqual(statuses[2],'skipped')
+        self.assertEqual(sorted(statuses[:2]),['completed','failed'])
+        completed=next(s for s in result['steps'][:2] if s['status']=='completed')
+        self.assertEqual(completed['processed'],25)  # Ran to real completion, not aborted.
 
     def test_selected_preview_does_not_execute_other_steps(self):
         spec=ordered();spec['steps'][1]['columns']=[];spec['steps'][1]['query']['sql']=''

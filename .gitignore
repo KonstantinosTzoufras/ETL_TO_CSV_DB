@@ -5,6 +5,7 @@ data/
 .env
 .env.backup-*
 ENV_SETUP_EXAMPLE.txt
+WORKER_SETUP.txt
 *.log
 node_modules/
 graphify-out/

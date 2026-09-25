@@ -1,8 +1,19 @@
-"""Sequential coordinator around the unchanged single-dataset execution engine."""
+"""Coordinator around the unchanged single-dataset execution engine.
+
+Steps run with up to pipeline.max_parallel_steps running at once (default 1,
+today's exact one-at-a-time behavior). A step that fails "fatally" or under
+failure_policy='stop' sets a shared stop flag: any step that has not yet
+started its own real work skips itself: any step already in flight when
+that happens still runs to completion. Each step's own report entry is
+touched only by that step's own thread, so the coordinator's lock is only
+needed around the shared report snapshot taken for persist().
+"""
 import copy
 import csv
 import json
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .engine import execute
@@ -60,67 +71,95 @@ def coordinate(spec, root, output_root, run_id, *, persist):
     run_root=output_root/run_id
     report=initial_report(snapshot,run_id)
     report.update(status='running',started=now())
+    publish_lock=threading.Lock()
+    stopped=threading.Event()
 
     def publish():
-        try:persist(copy.deepcopy(report))
-        except Exception:
-            raise StateWriteError('Ordered run state could not be persisted; execution stopped') from None
+        with publish_lock:
+            try:persist(copy.deepcopy(report))
+            except Exception:
+                raise StateWriteError('Ordered run state could not be persisted; execution stopped') from None
 
     def contained(path):
         require(path.resolve().is_relative_to(run_root.resolve()),'Output escaped the generated run directory')
         return path
 
+    def run_step(step,entry):
+        # Only this call ever mutates this particular entry, so no lock is
+        # needed for that - only publish()'s shared report snapshot needs one.
+        if stopped.is_set():
+            entry.update(status='skipped',finished=now(),error={'code':'STEP_SKIPPED','message':'Earlier step failed; run stopped'})
+            publish()
+            return
+        work=contained(run_root/'.partial'/f"{entry['position']:03d}-{step.id}")
+        target=contained(run_root/f"{entry['position']:03d}-{step.id}")
+        entry.update(status='running',started=now(),partial_directory=str(work))
+        publish()
+        try:
+            preflight(pipeline,root,output_root,steps=(step,))
+            work.mkdir(parents=True,exist_ok=False)
+            def observe(row):
+                entry['processed']+=1
+                entry['valid' if row.valid else 'invalid']+=1
+                if entry['processed'] % 1000 == 0:publish()
+            single=pipeline_to_dict(step_pipeline(pipeline,step))
+            result=execute(single,root,work,on_row=observe)
+            directory=contained(Path(result['directory']))
+            require(directory.resolve().is_relative_to(work.resolve()),'Invalid engine output directory')
+            output=f'{step.id}.{step.destination["kind"]}'
+            (directory/f'valid.{step.destination["kind"]}').rename(directory/output)
+            # Omit row samples from the coordinator report; existing rejection
+            # files are the durable per-row diagnostics, not an in-memory set.
+            step_report={k:result[k] for k in ('processed','valid','invalid')}
+            step_report.update(step_id=step.id,spec=single)
+            with (directory/'report.json').open('x',encoding='utf-8') as handle:
+                json.dump(step_report,handle,ensure_ascii=False,default=json_default)
+            directory.rename(target)  # Publish the closed complete directory.
+            entry.update(**{k:result[k] for k in ('processed','valid','invalid')},
+                         status='completed',finished=now(),directory=str(target),output=output,
+                         diagnostics='rejected.csv',partial_directory=None)
+        except StateWriteError:
+            # Never start another step when durable state cannot be recorded;
+            # a step already in flight elsewhere still finishes on its own.
+            stopped.set()
+            raise
+        except Exception as error:
+            code=error.code if isinstance(error,QueryError) else 'STEP_FAILED'
+            # Expected source/config errors are already sanitized by the
+            # adapters. Unexpected exceptions and filesystem paths stay private.
+            message=str(error) if isinstance(error,(ConfigError,csv.Error)) else 'Step execution failed; check input, output storage and configuration'
+            entry.update(status='failed',finished=now(),counts_basis='observed_before_failure',
+                         error={'code':code,'message':message})
+            fatal=isinstance(error,OSError) or not isinstance(error,(ConfigError,ValueError,csv.Error)) or isinstance(error,QueryError) and code not in {'QUERY_TIMEOUT','QUERY_EXECUTION_FAILED','QUERY_SCHEMA_INVALID'}
+            if fatal or pipeline.failure_policy=='stop':
+                stopped.set()
+        except BaseException:
+            # KeyboardInterrupt/SystemExit: a ThreadPoolExecutor worker thread
+            # does not stop dispatching queued steps just because one raised
+            # this - without the flag, an already-queued-but-not-yet-started
+            # step would still run for real after an interrupt.
+            stopped.set()
+            raise
+        publish()
+
     publish()
     try:
         preflight(pipeline,root,output_root)
         run_root.mkdir(parents=True,exist_ok=False)  # A run can never resume/overwrite.
-        for step,entry in zip(pipeline.steps,report['steps']):
-            work=contained(run_root/'.partial'/f"{entry['position']:03d}-{step.id}")
-            target=contained(run_root/f"{entry['position']:03d}-{step.id}")
-            entry.update(status='running',started=now(),partial_directory=str(work))
-            publish()
-            try:
-                preflight(pipeline,root,output_root,steps=(step,))
-                work.mkdir(parents=True,exist_ok=False)
-                def observe(row):
-                    entry['processed']+=1
-                    entry['valid' if row.valid else 'invalid']+=1
-                    if entry['processed'] % 1000 == 0:publish()
-                single=pipeline_to_dict(step_pipeline(pipeline,step))
-                result=execute(single,root,work,on_row=observe)
-                directory=contained(Path(result['directory']))
-                require(directory.resolve().is_relative_to(work.resolve()),'Invalid engine output directory')
-                output=f'{step.id}.{step.destination["kind"]}'
-                (directory/f'valid.{step.destination["kind"]}').rename(directory/output)
-                # Omit row samples from the coordinator report; existing rejection
-                # files are the durable per-row diagnostics, not an in-memory set.
-                step_report={k:result[k] for k in ('processed','valid','invalid')}
-                step_report.update(step_id=step.id,spec=single)
-                with (directory/'report.json').open('x',encoding='utf-8') as handle:
-                    json.dump(step_report,handle,ensure_ascii=False,default=json_default)
-                directory.rename(target)  # Publish the closed complete directory.
-                entry.update(**{k:result[k] for k in ('processed','valid','invalid')},
-                             status='completed',finished=now(),directory=str(target),output=output,
-                             diagnostics='rejected.csv',partial_directory=None)
-            except StateWriteError:
-                raise
-            except Exception as error:
-                code=error.code if isinstance(error,QueryError) else 'STEP_FAILED'
-                # Expected source/config errors are already sanitized by the
-                # adapters. Unexpected exceptions and filesystem paths stay private.
-                message=str(error) if isinstance(error,(ConfigError,csv.Error)) else 'Step execution failed; check input, output storage and configuration'
-                entry.update(status='failed',finished=now(),counts_basis='observed_before_failure',
-                             error={'code':code,'message':message})
-                fatal=isinstance(error,OSError) or not isinstance(error,(ConfigError,ValueError,csv.Error)) or isinstance(error,QueryError) and code not in {'QUERY_TIMEOUT','QUERY_EXECUTION_FAILED','QUERY_SCHEMA_INVALID'}
-                if fatal or pipeline.failure_policy=='stop':
-                    _skip_pending(report,'Earlier step failed; run stopped')
-                    report.update(status='failed',finished=now())
-                    publish()
-                    return report
-            publish()
-        report.update(status='completed_with_errors' if any(s['status']=='failed' for s in report['steps']) else 'completed',finished=now())
+        with ThreadPoolExecutor(max_workers=pipeline.max_parallel_steps) as executor:
+            futures=[executor.submit(run_step,step,entry) for step,entry in zip(pipeline.steps,report['steps'])]
+        for future in futures:
+            future.result()  # Re-raises StateWriteError; a normal step failure is already recorded, not raised.
+        statuses={s['status'] for s in report['steps']}
+        if 'skipped' in statuses:
+            final='failed'  # A stop was triggered; some steps never ran at all.
+        elif 'failed' in statuses:
+            final='completed_with_errors'
+        else:
+            final='completed'
+        report.update(status=final,finished=now())
     except StateWriteError:
-        raise  # Never start another step when durable state cannot be recorded.
+        raise
     except Exception:
         _skip_pending(report,'Run preflight or coordinator failed')
         report.update(status='failed',finished=now(),error='Run preflight or coordinator failed; no later step was started')

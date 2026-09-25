@@ -127,6 +127,7 @@ class OrderedQueryPipeline(_Immutable):
     steps: tuple[QueryExportStep, ...]
     failure_policy: str = "stop"
     format_version: int = 1
+    max_parallel_steps: int = 1
 
 
 @dataclass(frozen=True, slots=True)

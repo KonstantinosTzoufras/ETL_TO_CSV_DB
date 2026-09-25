@@ -63,7 +63,8 @@
       <section class="card" id="ordered-editor" hidden>
         <h2>Ordered query exports</h2>
         <p class="hint">
-          Independent query steps, executed one at a time. Save and Run apply to
+          Independent query steps, executed one at a time by default (raise
+          Max parallel steps to run several at once). Save and Run apply to
           the whole pipeline. Preview applies only to the selected step.
         </p>
         <div class="fields">
@@ -88,7 +89,14 @@
               <option value="stop">Stop on failure</option>
               <option value="continue">Continue later steps</option>
             </select></label
-          >
+          ><label
+            >Max parallel steps<input
+              id="ordered-parallel"
+              type="number"
+              min="1"
+              max="8"
+              value="1"
+          /></label>
         </div>
         <div id="ordered-steps"></div>
         <button id="ordered-add">Add independent step</button

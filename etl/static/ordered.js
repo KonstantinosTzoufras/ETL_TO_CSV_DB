@@ -11,7 +11,7 @@ function renderOrderedMode(){
 }
 function openOrdered(spec,id=null){
  clearTemplateDraft();orderedDraft=structuredClone(spec);orderedIndex=0;pipelineId=id;dirty=false;
- $("ordered-name").value=spec.name;$("ordered-policy").value=spec.failure_policy||"stop";
+ $("ordered-name").value=spec.name;$("ordered-policy").value=spec.failure_policy||"stop";$("ordered-parallel").value=spec.max_parallel_steps||1;
  if(![...$("ordered-connection").options].some(o=>o.value===spec.connection_env))$("ordered-connection").add(new Option(spec.connection_env||"Select an approved connection",spec.connection_env));
  $("ordered-connection").value=spec.connection_env;
  showOrderedStep();renderSaved();
@@ -31,7 +31,7 @@ function captureOrderedStep(){
  const single=read();
  if(single.source.kind!=="sqlserver_query"||single.source.connection_env!==orderedDraft.connection_env)throw new Error("Every step must use the shared query connection.");
  orderedDraft.steps[orderedIndex]={id:$("ordered-step-id").value,name:single.name,processing_version:single.version,query:structuredClone(single.source.query),columns:single.columns,destination:single.destination};
- orderedDraft.name=$("ordered-name").value;orderedDraft.failure_policy=$("ordered-policy").value;
+ orderedDraft.name=$("ordered-name").value;orderedDraft.failure_policy=$("ordered-policy").value;orderedDraft.max_parallel_steps=Number($("ordered-parallel").value)||1;
  renderOrderedSteps();
 }
 function workingDefinition(){if(!orderedDraft)return read();captureOrderedStep();return structuredClone(orderedDraft);}
@@ -39,7 +39,7 @@ function renderOrderedSteps(){
  $("ordered-steps").innerHTML=orderedDraft.steps.map((s,i)=>`<button data-ordered-index="${i}" ${i===orderedIndex?'aria-current="step"':""}>${i+1}. ${esc(s.name)} (${s.columns.length} mappings) → ${esc(s.id)}.${esc(s.destination.kind)}</button>`).join("");
  const s=orderedDraft.steps[orderedIndex];$("ordered-output").textContent=`Selected step ${orderedIndex+1}. Output: ${String(orderedIndex+1).padStart(3,"0")}-${s.id}/${s.id}.${s.destination.kind}. Rejected rows do not fail the step.`;
 }
-$("new-ordered").onclick=()=>{if(!dirty||confirm("Discard unsaved changes?"))openOrdered({kind:"ordered_query_export",format_version:1,name:"Ordered query exports",connection_env:"",failure_policy:"stop",steps:[orderedStep(1)]});};
+$("new-ordered").onclick=()=>{if(!dirty||confirm("Discard unsaved changes?"))openOrdered({kind:"ordered_query_export",format_version:1,name:"Ordered query exports",connection_env:"",failure_policy:"stop",max_parallel_steps:1,steps:[orderedStep(1)]});};
 $("ordered-steps").onclick=event=>{const button=event.target.closest("[data-ordered-index]");if(button)action(async()=>{captureOrderedStep();orderedIndex=Number(button.dataset.orderedIndex);showOrderedStep();});};
 $("ordered-add").onclick=()=>action(async()=>{captureOrderedStep();if(orderedDraft.steps.length>=20)throw new Error("Maximum 20 steps");let n=orderedDraft.steps.length+1;while(orderedDraft.steps.some(s=>s.id===`step-${n}`))n++;orderedDraft.steps.push(orderedStep(n));orderedIndex=orderedDraft.steps.length-1;showOrderedStep();dirty=true;});
 function moveOrdered(delta){return action(async()=>{captureOrderedStep();const next=orderedIndex+delta;if(next<0||next>=orderedDraft.steps.length)return;[orderedDraft.steps[orderedIndex],orderedDraft.steps[next]]=[orderedDraft.steps[next],orderedDraft.steps[orderedIndex]];orderedIndex=next;showOrderedStep();dirty=true;});}
