@@ -501,6 +501,18 @@ td {
 .run .queued {
   color: #a67c30;
 }
+.worker-idle {
+  background: #e9f2ec;
+  color: #258055;
+}
+.worker-busy {
+  background: #fbf1e2;
+  color: #a67c30;
+}
+.worker-offline {
+  background: #f7e9e8;
+  color: #b34b42;
+}
 /* A split export can produce far more files than fit inline; collapse them
    behind a disclosure instead of stretching the run card. */
 .split-downloads {

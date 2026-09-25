@@ -228,7 +228,10 @@ async function refreshRuns() {
   const runs=await api("/api/runs");
   $("runs").innerHTML=runs.length?runs.map(run=>run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br>${downloadLinks(run)}<button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`).join(""):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
   clearTimeout(timer);
-  if(runs.some(r=>["queued","running"].includes(r.status))) timer=setTimeout(()=>refreshRuns().catch(e=>notify(e.message,true)),1500);
+  if(runs.some(r=>["queued","running"].includes(r.status))){
+    await refreshWorkers();
+    timer=setTimeout(()=>refreshRuns().catch(e=>notify(e.message,true)),1500);
+  }
 }
 document.addEventListener("input",event=>{if(event.target.closest("main") && event.target.id!=="json" && !event.target.closest('#bulk-transforms') && !event.target.dataset.bulkSelect) dirty=true;if(event.target.closest("#columns") && event.target.dataset.field==="value")event.target.dataset.edited="true";});
 window.addEventListener("beforeunload",event=>{if(dirty){event.preventDefault();event.returnValue="";}});
@@ -306,14 +309,21 @@ $("run").onclick=()=>action(async()=>{
   const spec=workingDefinition();
   if(spec.destination&&spec.destination.kind==="sqlserver"&&!pipelineId)
     throw new Error("Save this pipeline before running a database export, so its table can be found again next time.");
-  await api("/api/runs",{spec,pipeline_id:pipelineId});
+  await api("/api/runs",{spec,pipeline_id:pipelineId,target:$("execution-target").value});
   notify("Export started. Follow its progress in Run history.");await refreshRuns();
 });
-$("refresh").onclick=()=>action(refreshRuns);
+async function refreshWorkers(){
+  if(![...$("execution-target").options].some(o=>o.value!=="server"))return;  // Nothing configured; skip the round trip.
+  const {workers}=await api("/api/workers",{});
+  $("worker-status").innerHTML=Object.entries(workers).map(([name,status])=>
+    `<span class="chip ${status.online?(status.idle?"worker-idle":"worker-busy"):"worker-offline"}">${esc(name)} — ${status.online?(status.idle?"Idle":`Running ${esc(status.current_run_id||"")}`):"Offline"}</span>`
+  ).join("");
+}
+$("refresh").onclick=()=>action(async()=>{await refreshRuns();await refreshWorkers();});
 $("advanced").ontoggle=()=>{if($("advanced").open){try{$("json").value=JSON.stringify(workingDefinition(),null,2);}catch(error){$("advanced").open=false;notify(error.message,true);}}};
 $("json").oninput=()=>{dirty=true;};
 $("apply").onclick=()=>action(async()=>{read();const next=JSON.parse($("json").value);await api("/api/validate",{spec:next});openDefinition(next,pipelineId);dirty=true;notify("Definition applied. Save the pipeline to keep these changes.");});
-(async()=>{try{const bootstrap=await api("/api/bootstrap");token=bootstrap.token; maxOutputColumns=bootstrap.max_output_columns||4096; (bootstrap.source_connections||[]).forEach(name=>$("connection").add(new Option(name,name))); $("connection-note").textContent=(bootstrap.source_connections||[]).length?"Choose a configured reference, then Browse datasets to select a schema and table. Query approval is separate.":"No database connections are configured in this server process. Add an ETL_SQL_* connection or DB_HOST/DB_NAME/DB_USER/DB_PASS to the workspace .env and restart. CSV browsing is available."; if(bootstrap.output_directory)$("export-location").textContent=`Generated files: ${bootstrap.output_directory} (one folder per run). Download completed files from Run history; your browser chooses where downloaded copies are saved.`; saved=await api("/api/pipelines"); openDefinition(saved.length?blank():(bootstrap.example||blank()));await refreshRuns();}catch(error){notify(error.message,true);}})();
+(async()=>{try{const bootstrap=await api("/api/bootstrap");token=bootstrap.token; maxOutputColumns=bootstrap.max_output_columns||4096; (bootstrap.source_connections||[]).forEach(name=>$("connection").add(new Option(name,name))); (bootstrap.workers||[]).forEach(name=>$("execution-target").add(new Option(name,name))); $("connection-note").textContent=(bootstrap.source_connections||[]).length?"Choose a configured reference, then Browse datasets to select a schema and table. Query approval is separate.":"No database connections are configured in this server process. Add an ETL_SQL_* connection or DB_HOST/DB_NAME/DB_USER/DB_PASS to the workspace .env and restart. CSV browsing is available."; if(bootstrap.output_directory)$("export-location").textContent=`Generated files: ${bootstrap.output_directory} (one folder per run). Download completed files from Run history; your browser chooses where downloaded copies are saved.`; saved=await api("/api/pipelines"); openDefinition(saved.length?blank():(bootstrap.example||blank()));await refreshRuns();}catch(error){notify(error.message,true);}})();
 
 function displayValue(value) { return value && typeof value === "object" && "$type" in value ? value.value : value; }
 

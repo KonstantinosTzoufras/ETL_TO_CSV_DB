@@ -44,6 +44,11 @@ class Store:
         with self.connect() as db:
             if "provenance" not in {row["name"] for row in db.execute("PRAGMA table_info(pipelines)")}:
                 db.execute("ALTER TABLE pipelines ADD COLUMN provenance TEXT")
+        # 'server' for every run before remote execution existed; existing rows
+        # keep meaning exactly what they always meant.
+        with self.connect() as db:
+            if "execution_target" not in {row["name"] for row in db.execute("PRAGMA table_info(runs)")}:
+                db.execute("ALTER TABLE runs ADD COLUMN execution_target TEXT NOT NULL DEFAULT 'server'")
 
     @contextmanager
     def connect(self):
@@ -149,16 +154,39 @@ class Store:
             row = db.execute("SELECT table_name FROM pipeline_exports WHERE pipeline_id=?", (pipeline_id,)).fetchone()
         return row["table_name"] if row else None
 
-    def create_run(self, spec):
+    def create_run(self, spec, execution_target="server"):
         validate(spec)
         run_id = uuid.uuid4().hex
         with self.connect() as db:
-            db.execute("INSERT INTO runs(id,name,spec,started,status) VALUES(?,?,?,?,?)", (run_id, spec["name"], json.dumps(spec), now(), "queued"))
+            db.execute("INSERT INTO runs(id,name,spec,started,status,execution_target) VALUES(?,?,?,?,?,?)",
+                       (run_id, spec["name"], json.dumps(spec), now(), "queued", execution_target))
         return run_id
 
     def update_run(self, run_id, status, report=None, error=None):
         with self.connect() as db:
             db.execute("UPDATE runs SET status=?, report=COALESCE(?,report), error=?, finished=? WHERE id=?", (status, json.dumps(report, default=json_default) if report is not None else None, error, now() if status in {"completed", "completed_with_errors", "failed", "interrupted"} else None, run_id))
+
+    def finish_run(self, run_id, status, report=None, error=None):
+        """Guarded terminal transition, out of queued/running only. Returns
+        whether this call was the one that made the transition - callers that
+        release a shared resource on completion (a remote run's server-side
+        slot) must only do so when this is True, so a race between two
+        observers of the same run (e.g. a timeout racing a late status
+        arriving) cannot release it twice."""
+        with self.connect() as db:
+            cursor = db.execute(
+                "UPDATE runs SET status=?, report=COALESCE(?,report), error=?, finished=? WHERE id=? AND status IN ('queued','running')",
+                (status, json.dumps(report, default=json_default) if report is not None else None, error, now(), run_id))
+            return cursor.rowcount == 1
+
+    def mark_running(self, run_id):
+        """Queued -> running only. A remote dispatch that finishes after the
+        poller already timed out/failed the same run_id must not resurrect
+        it - if this returns False, the run already has its final outcome
+        and the caller has nothing further to do."""
+        with self.connect() as db:
+            cursor = db.execute("UPDATE runs SET status='running' WHERE id=? AND status='queued'", (run_id,))
+            return cursor.rowcount == 1
 
     def runs(self):
         with self.connect() as db:

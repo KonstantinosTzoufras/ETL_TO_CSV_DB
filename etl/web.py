@@ -10,10 +10,12 @@ import secrets
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from . import remote
 from .engine import execute
 from .ordered import is_ordered, validate_definition, from_dict as ordered_from_dict, to_dict as ordered_to_dict, preflight, preview_spec
 from .ordered_runs import coordinate, interrupted_report, failed_report, step_history, download_path
@@ -26,18 +28,28 @@ from .store import Store
 from .binding_profiles import dispatch as profile_request, provenance
 from .db_export import export_policies
 from .templates import TemplateStore, dispatch as template_request
+from .workers import worker_registry
 
 ASSETS = Path(__file__).parent / "static"
 
 
 class Application:
-    def __init__(self, root, data):
+    def __init__(self, root, data, *, remote_poll_interval=2.0, remote_run_timeout=600):
         self.root, self.data = Path(root).resolve(), Path(data).resolve()
         self.store = Store(self.data / "etl.sqlite3")
         self.templates = TemplateStore(self.data / "templates")
         self.token = secrets.token_urlsafe(32)
         self.executor = ThreadPoolExecutor(max_workers=2)
         self.slots = threading.BoundedSemaphore(8)
+        # Remote runs never occupy an executor slot or a worker thread for
+        # their whole lifetime: dispatch is one quick outbound call, and a
+        # single shared poller thread (not one per run) checks status
+        # afterward - max_workers=2 stays a purely local-execution limit.
+        self.remote_poll_interval = remote_poll_interval
+        self.remote_run_timeout = remote_run_timeout
+        self._stop_polling = threading.Event()
+        self._poll_thread = threading.Thread(target=self._poll_remote_runs, daemon=True)
+        self._poll_thread.start()
         # Recover ordered runs without resuming any step or querying sources.
         with self.store.connect() as db:
             unfinished = [dict(row) for row in db.execute("SELECT * FROM runs WHERE status IN ('queued','running')")]
@@ -50,8 +62,11 @@ class Application:
         with self.store.connect() as db:
             db.execute("UPDATE runs SET status='interrupted', error='The application stopped before this run finished.' WHERE status IN ('queued','running')")
 
-    def submit(self, spec, pipeline_id=None):
+    def submit(self, spec, pipeline_id=None, target="server"):
         validate_definition(spec)
+        if target != "server":
+            require(not is_ordered(spec), "Ordered pipelines cannot run on a remote worker yet")
+            require(target in worker_registry(), f"Unknown execution target: {target}")
         if is_ordered(spec):
             model = ordered_from_dict(spec)
             preflight(model, self.root, self.data / "runs")
@@ -65,8 +80,16 @@ class Application:
         require(self.slots.acquire(blocking=False), "Eight runs are already queued or running; wait for one to finish")
         run_id = None
         try:
-            run_id = self.store.create_run(spec)
-            self.executor.submit(self.work, run_id, spec, pipeline_id)
+            run_id = self.store.create_run(spec, execution_target=target)
+            if target == "server":
+                self.executor.submit(self.work, run_id, spec, pipeline_id)
+            else:
+                worker = worker_registry()[target]
+                remote.dispatch(worker["url"], worker["token"], run_id, spec)
+                # Guarded: if the poller already timed this run out between
+                # dispatch and here, it already has its final outcome and its
+                # slot release - this must not resurrect it back to "running".
+                self.store.mark_running(run_id)
             return run_id
         except Exception:
             self.slots.release()
@@ -78,6 +101,56 @@ class Application:
                 except Exception:
                     logging.error("Run %s could not be recorded as failed", run_id)
             raise
+
+    def _poll_remote_runs(self):
+        while not self._stop_polling.wait(self.remote_poll_interval):
+            try:
+                self._poll_once()
+            except Exception:
+                logging.error("Remote run polling failed", exc_info=True)
+
+    def _poll_once(self):
+        with self.store.connect() as db:
+            rows = [dict(row) for row in db.execute(
+                "SELECT id, execution_target, spec, started FROM runs WHERE status IN ('queued','running') AND execution_target != 'server'")]
+        if not rows:
+            return
+        workers = worker_registry()
+        for row in rows:
+            self._poll_run(row, workers)
+
+    def _finish_remote(self, run_id, status, report=None, error=None):
+        # Guarded: only the observer that actually flips queued/running to a
+        # terminal state releases the slot - a timeout racing a late status
+        # (or a resurrection race with submit()'s own mark_running) must not
+        # release the same slot twice.
+        if self.store.finish_run(run_id, status, report=report, error=error):
+            self.slots.release()
+
+    def _poll_run(self, row, workers):
+        run_id, target, spec = row["id"], row["execution_target"], json.loads(row["spec"])
+        worker = workers.get(target)
+        if worker is None:
+            self._finish_remote(run_id, "failed", error=f"Worker '{target}' is no longer configured")
+            return
+        try:
+            job = remote.poll(worker["url"], worker["token"], run_id)
+        except ConfigError:
+            job = None  # Transient network failure: retry on the next tick, subject to the timeout below.
+        if job is not None and job["status"] != "running":
+            if job["status"] == "completed":
+                self._finish_remote(run_id, "completed", report=job["report"])
+            else:
+                self._finish_remote(run_id, "failed", error=job.get("error") or "Remote run failed")
+            return
+        started = datetime.fromisoformat(row["started"])
+        if (datetime.now(timezone.utc) - started).total_seconds() > self.remote_run_timeout:
+            self._finish_remote(run_id, "failed", error="Worker did not respond within the timeout")
+
+    def shutdown(self):
+        self._stop_polling.set()
+        self._poll_thread.join(timeout=5)
+        self.executor.shutdown(wait=True)
 
     def fail(self, run_id, spec, message):
         if is_ordered(spec):
@@ -149,11 +222,15 @@ def handler_for(app):
                 sample_path = app.root / "examples" / "customers.json"
                 self.respond(200, {"token": app.token, "example": json.loads(sample_path.read_text(encoding="utf-8-sig")) if sample_path.exists() else None,
                                    "source_connections": sorted(name for name, value in os.environ.items() if re.fullmatch(r"ETL_SQL_[A-Z0-9_]+", name) and value),
+                                   "workers": sorted(worker_registry()),
                                    "output_directory": str(app.data / "runs"), "max_output_columns": MAX_OUTPUT_COLUMNS})
             elif path == "/api/pipelines":
                 self.respond(200, app.store.pipelines())
             elif path == "/api/runs":
                 self.respond(200, app.store.runs())
+            elif path == "/api/workers":
+                workers = worker_registry()
+                self.respond(200, {"workers": {name: remote.health(config["url"], config["token"]) for name, config in workers.items()}})
             elif path.startswith("/download/"):
                 parts = path.split("/")
                 run = app.store.run(parts[2]) if len(parts) in (4, 5) else None
@@ -264,7 +341,9 @@ def handler_for(app):
                 elif path == "/api/runs":
                     pipeline_id = body.get("pipeline_id")
                     require(pipeline_id is None or isinstance(pipeline_id, str) and len(pipeline_id) <= 64, "Invalid pipeline ID")
-                    self.respond(202, {"id": app.submit(body.get("spec"), pipeline_id)})
+                    target = body.get("target", "server")
+                    require(isinstance(target, str) and target, "Invalid execution target")
+                    self.respond(202, {"id": app.submit(body.get("spec"), pipeline_id, target)})
                 else:
                     self.respond(404, {"error": "Not found"})
             except (DiscoveryError, QueryError) as error:

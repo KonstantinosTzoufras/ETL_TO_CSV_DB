@@ -187,7 +187,7 @@ class OrderedTests(unittest.TestCase):
         with patch('pyodbc.connect',side_effect=AssertionError('restart queried source')):
             app=Application(self.root,self.data)
             try:run=app.store.run(run_id)
-            finally:app.executor.shutdown(wait=True)
+            finally:app.shutdown()
         self.assertEqual(run['status'],'interrupted');self.assertTrue(run['finished'])
         self.assertEqual([s['status'] for s in run['report']['steps']],['completed','interrupted','skipped'])
         self.assertEqual(run['report']['steps'][1]['counts_basis'],'last_checkpoint')
@@ -206,7 +206,7 @@ class OrderedTests(unittest.TestCase):
             for connection,cursor in sessions:connection.close.assert_called_once();cursor.close.assert_called_once()
             before=len(sessions);app=Application(self.root,self.data)
             try:run=app.store.run(run_id)
-            finally:app.executor.shutdown(wait=True)
+            finally:app.shutdown()
             self.assertEqual(len(sessions),before)
         self.assertEqual([s['status'] for s in run['report']['steps']],['completed','interrupted','skipped'])
         self.assertTrue(download_path(run,'customers','customers.csv',self.data).is_file())

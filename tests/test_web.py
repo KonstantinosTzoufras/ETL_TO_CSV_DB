@@ -29,7 +29,7 @@ class WebTests(unittest.TestCase):
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
-        self.app.executor.shutdown(wait=True)
+        self.app.shutdown()
         self.thread.join()
         self.temp.cleanup()
 
@@ -59,6 +59,29 @@ class WebTests(unittest.TestCase):
         self.assertEqual(result["output_directory"], str(self.app.data / "runs"))
         self.assertNotIn(b"secret-password", body)
         self.assertNotIn(b"other-secret", body)
+
+    def test_bootstrap_lists_worker_names_without_tokens(self):
+        workers = json.dumps({"Worker-PC-01": {"url": "http://10.0.0.5:8790", "token": "worker-secret"}})
+        with patch.dict("os.environ", {"ETL_WORKERS": workers}, clear=True):
+            status, body = self.request("GET", "/api/bootstrap")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["workers"], ["Worker-PC-01"])
+        self.assertNotIn(b"worker-secret", body)
+
+    def test_workers_endpoint_reports_health_per_worker(self):
+        workers = json.dumps({"Worker-PC-01": {"url": "http://127.0.0.1:1", "token": "t"}})
+        with patch.dict("os.environ", {"ETL_WORKERS": workers}, clear=True):
+            status, body = self.request("GET", "/api/workers")
+        self.assertEqual(status, 200)
+        result = json.loads(body)["workers"]
+        self.assertEqual(set(result), {"Worker-PC-01"})
+        self.assertFalse(result["Worker-PC-01"]["online"])  # Nothing listens on port 1.
+
+    def test_runs_with_an_unknown_execution_target_is_refused(self):
+        status, body = self.request("POST", "/api/runs", {"spec": self.spec, "target": "NoSuchWorker"})
+        self.assertEqual(status, 400)
+        self.assertIn("Unknown execution target", json.loads(body)["error"])
+        self.assertEqual(self.app.store.runs(), [])  # Refused before any run was recorded.
 
     def test_preview_save_load_and_validation_errors(self):
         status,body=self.request("POST","/api/preview",{"spec":self.spec})
