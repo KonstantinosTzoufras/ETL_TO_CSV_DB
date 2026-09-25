@@ -281,7 +281,12 @@ button:disabled {
   border-color: #93b5a0;
 }
 .button-link.primary {
+  background: #196448;
   color: #fff;
+  border-color: #196448;
+}
+.button-link.primary:hover {
+  background: #114d36;
 }
 
 /* SECTION NAV AND FIELD ROWS
@@ -1142,7 +1147,10 @@ header h1 {
 #discovery-sample-table,
 #preview-table,
 #run-diagnostics-rows,
-#runs {
+/* Only the builder page's compact "Latest run" widget is bounded like
+   this - the dedicated history page reuses id="runs" for its full list,
+   which should use the page, not scroll inside a small box. */
+#results-area #runs {
   max-height: 360px;
   overflow: auto;
   scrollbar-gutter: stable;
