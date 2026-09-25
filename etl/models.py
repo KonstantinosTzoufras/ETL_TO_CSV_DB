@@ -118,6 +118,7 @@ class QueryExportStep(_Immutable):
     columns: tuple[FieldMapping, ...]
     destination: Mapping[str, object]
     processing_version: int = 2
+    execution_target: str = "server"
 
 
 @dataclass(frozen=True, slots=True)

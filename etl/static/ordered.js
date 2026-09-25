@@ -1,6 +1,6 @@
 "use strict";
 let orderedDraft=null, orderedIndex=0, orderedConnectionsLoaded=false;
-const orderedStep=number=>({id:`step-${number}`,name:`Step ${number}`,processing_version:2,query:{format_version:1,dialect:"tsql",sql:"",parameters:[],timeout_seconds:60},columns:[],destination:{kind:"csv",delimiter:";"}});
+const orderedStep=number=>({id:`step-${number}`,name:`Step ${number}`,processing_version:2,query:{format_version:1,dialect:"tsql",sql:"",parameters:[],timeout_seconds:60},columns:[],destination:{kind:"csv",delimiter:";"},execution_target:"server"});
 function clearOrdered(){orderedDraft=null;$("ordered-editor").hidden=true;}
 function renderOrderedMode(){
  const active=!!orderedDraft;
@@ -24,13 +24,16 @@ function showOrderedStep(){
  const step=orderedDraft.steps[orderedIndex];
  definition={version:step.processing_version,name:step.name,source:{kind:"sqlserver_query",connection_env:orderedDraft.connection_env,query:structuredClone(step.query)},columns:structuredClone(step.columns),destination:structuredClone(step.destination)};
  $("ordered-step-id").value=step.id;$("ordered-version").value=String(step.processing_version);
+ const target=step.execution_target||"server";
+ if(![...$("ordered-step-target").options].some(o=>o.value===target))$("ordered-step-target").add(new Option(target+" (not currently configured)",target));
+ $("ordered-step-target").value=target;
  render();renderOrderedSteps();
 }
 function captureOrderedStep(){
  if(!orderedDraft)return;
  const single=read();
  if(single.source.kind!=="sqlserver_query"||single.source.connection_env!==orderedDraft.connection_env)throw new Error("Every step must use the shared query connection.");
- orderedDraft.steps[orderedIndex]={id:$("ordered-step-id").value,name:single.name,processing_version:single.version,query:structuredClone(single.source.query),columns:single.columns,destination:single.destination};
+ orderedDraft.steps[orderedIndex]={id:$("ordered-step-id").value,name:single.name,processing_version:single.version,query:structuredClone(single.source.query),columns:single.columns,destination:single.destination,execution_target:$("ordered-step-target").value};
  orderedDraft.name=$("ordered-name").value;orderedDraft.failure_policy=$("ordered-policy").value;orderedDraft.max_parallel_steps=Number($("ordered-parallel").value)||1;
  renderOrderedSteps();
 }

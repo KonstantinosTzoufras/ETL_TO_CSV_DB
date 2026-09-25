@@ -11,6 +11,11 @@ from .sources import input_path
 KIND = 'ordered_query_export'
 STEP_ID = re.compile(r'[a-z][a-z0-9_-]{0,47}')
 RESERVED = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1,10)), *(f'lpt{i}' for i in range(1,10))}
+# Existence of a named worker is an environment fact, checked at dispatch time
+# (etl.workers.worker_registry()), same as connection_env already is - this
+# only constrains the shape, so a spec saved on one machine still loads fine
+# on another with a different worker roster.
+EXECUTION_TARGET = re.compile(r'server|auto|[A-Za-z0-9_-]{1,64}')
 
 
 def is_ordered(spec):
@@ -44,11 +49,13 @@ def from_dict(spec):
     require(isinstance(raw_steps,list) and 1 <= len(raw_steps) <= 20, 'Choose 1-20 ordered steps')
     steps=[]; seen=set()
     for raw in raw_steps:
-        keys(raw, {'id','name','query','processing_version','columns','destination'}, 'query step')
-        require(set(raw)=={'id','name','query','processing_version','columns','destination'}, 'Each step requires id, name, query, processing_version, columns and destination')
+        keys(raw, {'id','name','query','processing_version','columns','destination','execution_target'}, 'query step')
+        require(set(raw)-{'execution_target'}=={'id','name','query','processing_version','columns','destination'}, 'Each step requires id, name, query, processing_version, columns and destination')
         identifier=raw['id']
         require(isinstance(identifier,str) and STEP_ID.fullmatch(identifier) and identifier not in RESERVED, 'Step ID must be a safe lowercase identifier (1-48 characters), not a reserved filename')
         require(identifier not in seen,'Step IDs must be unique');seen.add(identifier)
+        step_target=raw.get('execution_target','server')
+        require(isinstance(step_target,str) and EXECUTION_TARGET.fullmatch(step_target), 'Step execution_target must be server, auto, or a worker name')
         # download_path below names a step's file as f'{step_id}.{extension}', so
         # a per-group subdirectory has nowhere to be served from yet.
         require(not isinstance(raw.get('destination'),dict) or 'split_by' not in raw['destination'], 'split_by is not supported for ordered query steps')
@@ -60,7 +67,7 @@ def from_dict(spec):
             lookup=column.get('lookup',{}).get('source')
             if lookup and lookup['kind']=='sqlserver':
                 require(lookup['connection_env']==spec['connection_env'], 'SQL lookups must use the shared connection')
-        steps.append(QueryExportStep(identifier,single.name,single.source.options['query'],single.columns,single.destination,single.version))
+        steps.append(QueryExportStep(identifier,single.name,single.source.options['query'],single.columns,single.destination,single.version,step_target))
     return OrderedQueryPipeline(spec['name'],spec['connection_env'],tuple(steps),policy,max_parallel_steps=max_parallel)
 
 
@@ -71,7 +78,8 @@ def to_dict(pipeline):
         require(isinstance(step,QueryExportStep),'Expected QueryExportStep')
         single=pipeline_to_dict(step_pipeline(pipeline,step))
         steps.append({'id':step.id,'name':step.name,'query':single['source']['query'],
-                      'processing_version':single['version'],'columns':single['columns'],'destination':single['destination']})
+                      'processing_version':single['version'],'columns':single['columns'],'destination':single['destination'],
+                      'execution_target':step.execution_target})
     spec={'kind':KIND,'format_version':pipeline.format_version,'name':pipeline.name,
           'connection_env':pipeline.connection_env,'failure_policy':pipeline.failure_policy,
           'max_parallel_steps':pipeline.max_parallel_steps,'steps':steps}

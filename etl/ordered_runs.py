@@ -13,15 +13,18 @@ import csv
 import json
 import re
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from . import remote
 from .engine import execute
 from .ordered import KIND, from_dict, to_dict, step_pipeline, preflight, step_spec, STEP_ID
 from .queries import QueryError
 from .serialization import pipeline_to_dict, json_default
 from .spec import ConfigError, require
 from .store import now
+from .workers import worker_registry
 
 
 class StateWriteError(RuntimeError):
@@ -84,6 +87,39 @@ def coordinate(spec, root, output_root, run_id, *, persist):
         require(path.resolve().is_relative_to(run_root.resolve()),'Output escaped the generated run directory')
         return path
 
+    def resolve_target(step):
+        """"server"/a named worker pass through; "auto" picks the first idle,
+        reachable worker and falls back to "server" when none is available -
+        decided per step, at the moment it actually starts, so load already
+        placed by earlier steps in this same run is reflected."""
+        declared=step.execution_target
+        if declared=='server':
+            return 'server'
+        workers=worker_registry()
+        if declared=='auto':
+            for name,config in workers.items():
+                status=remote.health(config['url'],config['token'],timeout=3)
+                if status.get('online') and status.get('idle'):
+                    return name
+            return 'server'
+        require(declared in workers,f"Step '{step.id}': unknown execution target '{declared}'")
+        return declared
+
+    def run_remote(worker,job_id,single,timeout=600):
+        remote.dispatch(worker['url'],worker['token'],job_id,single)
+        deadline=time.monotonic()+timeout
+        while True:
+            try:
+                job=remote.poll(worker['url'],worker['token'],job_id)
+            except ConfigError:
+                job=None  # Transient network hiccup: retry, subject to the timeout below.
+            if job is not None and job['status']!='running':
+                break
+            require(time.monotonic()<deadline,'Worker did not respond within the timeout')
+            time.sleep(1)  # This thread owns the step for its whole duration anyway.
+        require(job['status']=='completed',job.get('error') or 'Remote step failed')
+        return job['report']
+
     def run_step(step,entry):
         # Only this call ever mutates this particular entry, so no lock is
         # needed for that - only publish()'s shared report snapshot needs one.
@@ -97,15 +133,25 @@ def coordinate(spec, root, output_root, run_id, *, persist):
         publish()
         try:
             preflight(pipeline,root,output_root,steps=(step,))
-            work.mkdir(parents=True,exist_ok=False)
-            def observe(row):
-                entry['processed']+=1
-                entry['valid' if row.valid else 'invalid']+=1
-                if entry['processed'] % 1000 == 0:publish()
             single=pipeline_to_dict(step_pipeline(pipeline,step))
-            result=execute(single,root,work,on_row=observe)
-            directory=contained(Path(result['directory']))
-            require(directory.resolve().is_relative_to(work.resolve()),'Invalid engine output directory')
+            chosen=resolve_target(step)
+            if chosen=='server':
+                work.mkdir(parents=True,exist_ok=False)
+                def observe(row):
+                    entry['processed']+=1
+                    entry['valid' if row.valid else 'invalid']+=1
+                    if entry['processed'] % 1000 == 0:publish()
+                result=execute(single,root,work,on_row=observe)
+                directory=contained(Path(result['directory']))
+                require(directory.resolve().is_relative_to(work.resolve()),'Invalid engine output directory')
+            else:
+                # The worker runs this on its own filesystem: its output only
+                # becomes usable here if server and worker share the output
+                # root (same --data, or a real network share) - same
+                # requirement as a top-level run dispatched to a worker.
+                worker=worker_registry()[chosen]
+                result=run_remote(worker,f'{run_id}:{step.id}',single)
+                directory=Path(result['directory'])
             output=f'{step.id}.{step.destination["kind"]}'
             (directory/f'valid.{step.destination["kind"]}').rename(directory/output)
             # Omit row samples from the coordinator report; existing rejection

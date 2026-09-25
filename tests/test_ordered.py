@@ -26,7 +26,8 @@ def ordered(policy='stop', count=3):
     for identifier in ('customers','orders','balances')[:count]:
         single=pipeline()
         steps.append({'id':identifier,'name':identifier.title(),'query':single['source']['query'],
-                      'processing_version':2,'columns':single['columns'],'destination':single['destination']})
+                      'processing_version':2,'columns':single['columns'],'destination':single['destination'],
+                      'execution_target':'server'})
     return {'kind':'ordered_query_export','format_version':1,'name':'Ordered extracts',
             'connection_env':REFERENCE,'failure_policy':policy,'max_parallel_steps':1,'steps':steps}
 
