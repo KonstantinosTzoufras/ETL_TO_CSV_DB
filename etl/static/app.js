@@ -229,7 +229,9 @@ async function refreshRuns() {
   $("runs").innerHTML=runs.length?runs.map(run=>run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br>${downloadLinks(run)}<button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`).join(""):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
   clearTimeout(timer);
   if(runs.some(r=>["queued","running"].includes(r.status))){
-    await refreshWorkers();
+    // A worker-status hiccup must not stop the run poll loop itself - a run
+    // reaching "completed" is what matters here, not the status panel.
+    try{await refreshWorkers();}catch(error){console.error(error);}
     timer=setTimeout(()=>refreshRuns().catch(e=>notify(e.message,true)),1500);
   }
 }
