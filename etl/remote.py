@@ -10,6 +10,13 @@ import urllib.request
 from .spec import ConfigError
 
 
+class WorkerBusy(ConfigError):
+    """The worker refused (HTTP 409): it is already running a different job.
+    A distinct type from a generic dispatch failure so an "auto" caller can
+    retry elsewhere instead of failing outright - a manually pinned target
+    still surfaces this as a plain failure (it's a ConfigError either way)."""
+
+
 def _call(method, url, token, path, body=None, timeout=10):
     request = urllib.request.Request(
         url.rstrip("/") + path, method=method,
@@ -30,8 +37,11 @@ def _call(method, url, token, path, body=None, timeout=10):
 
 
 def dispatch(url, token, run_id, spec, timeout=10):
-    """POST /run. Raises ConfigError if the worker refuses or is unreachable."""
+    """POST /run. Raises WorkerBusy for HTTP 409 (already running something
+    else), ConfigError for any other refusal or if the worker is unreachable."""
     status, body = _call("POST", url, token, "/run", {"run_id": run_id, "spec": spec}, timeout=timeout)
+    if status == 409:
+        raise WorkerBusy(body.get("error") or "Worker is busy")
     if status not in (200, 202):
         raise ConfigError(body.get("error") or f"Worker refused the job (HTTP {status})")
     return body

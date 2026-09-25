@@ -87,5 +87,32 @@ class OrderedRemoteStepTests(unittest.TestCase):
         self.assertIn('unknown execution target',result['steps'][0]['error']['message'].lower())
         self.assertEqual(len(sessions),1)  # Only the second (server) step ever opened a connection.
 
+    def test_auto_falls_back_to_server_when_the_worker_becomes_busy_mid_dispatch(self):
+        # health() said idle (that's how "auto" chose this worker at all),
+        # but dispatch() itself lands a 409 - a real race this exact scenario
+        # hit live: two auto-resolved steps both saw the one worker as idle
+        # and only one dispatch could actually win it. Proven directly against
+        # the fallback logic (WorkerBusy -> retry as server), not by trying to
+        # win a real thread race deterministically.
+        from etl import ordered_runs
+        spec=ordered(count=1);spec['steps'][0]['execution_target']='auto'
+        with fake_sql() as (sessions,_),patch.dict('os.environ',{'ETL_WORKERS':self.workers_env}), \
+             patch.object(ordered_runs.remote,'dispatch',side_effect=ordered_runs.remote.WorkerBusy('busy')):
+            result=self.run_steps(spec)
+        self.assertEqual(result['status'],'completed')
+        self.assertEqual(result['steps'][0]['resolved_target'],'server')
+        self.assertEqual(len(sessions),1)  # Fell back to a real local execution.
+
+    def test_pinned_worker_busy_is_not_retried_elsewhere(self):
+        # A manual pin is a deliberate choice - a 409 there is a plain failure,
+        # not something to silently reroute.
+        from etl import ordered_runs
+        spec=ordered(count=1);spec['steps'][0]['execution_target']='TestWorker'
+        with fake_sql() as (sessions,_),patch.dict('os.environ',{'ETL_WORKERS':self.workers_env}), \
+             patch.object(ordered_runs.remote,'dispatch',side_effect=ordered_runs.remote.WorkerBusy('busy')):
+            result=self.run_steps(spec)
+        self.assertEqual(result['steps'][0]['status'],'failed')
+        self.assertEqual(len(sessions),0)
+
 
 if __name__=='__main__':unittest.main()

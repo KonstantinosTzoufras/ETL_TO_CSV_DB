@@ -135,18 +135,14 @@ def coordinate(spec, root, output_root, run_id, *, persist):
         target=contained(run_root/f"{entry['position']:03d}-{step.id}")
         entry.update(status='running',started=now(),partial_directory=str(work))
         publish()
-        try:
-            preflight(pipeline,root,output_root,steps=(step,))
-            single=pipeline_to_dict(step_pipeline(pipeline,step))
-            chosen=resolve_target(step)
-            entry['resolved_target']=chosen
-            publish()
+        def observe(row):
+            entry['processed']+=1
+            entry['valid' if row.valid else 'invalid']+=1
+            if entry['processed'] % 1000 == 0:publish()
+
+        def run_on(chosen,single):
             if chosen=='server':
                 work.mkdir(parents=True,exist_ok=False)
-                def observe(row):
-                    entry['processed']+=1
-                    entry['valid' if row.valid else 'invalid']+=1
-                    if entry['processed'] % 1000 == 0:publish()
                 result=execute(single,root,work,on_row=observe)
                 directory=contained(Path(result['directory']))
                 require(directory.resolve().is_relative_to(work.resolve()),'Invalid engine output directory')
@@ -158,6 +154,28 @@ def coordinate(spec, root, output_root, run_id, *, persist):
                 worker=worker_registry()[chosen]
                 result=run_remote(worker,f'{run_id}:{step.id}',single)
                 directory=Path(result['directory'])
+            return result,directory
+
+        try:
+            preflight(pipeline,root,output_root,steps=(step,))
+            single=pipeline_to_dict(step_pipeline(pipeline,step))
+            chosen=resolve_target(step)
+            entry['resolved_target']=chosen
+            publish()
+            try:
+                result,directory=run_on(chosen,single)
+            except remote.WorkerBusy:
+                # Auto only ever meant "somewhere available" - another step
+                # claimed this worker in the gap between the health check and
+                # this dispatch, so fall back exactly like "no idle worker"
+                # would have. A manually pinned target gets no such retry:
+                # the operator asked for that worker specifically.
+                if step.execution_target!='auto':
+                    raise
+                chosen='server'
+                entry['resolved_target']=chosen
+                publish()
+                result,directory=run_on(chosen,single)
             output=f'{step.id}.{step.destination["kind"]}'
             (directory/f'valid.{step.destination["kind"]}').rename(directory/output)
             # Omit row samples from the coordinator report; existing rejection
