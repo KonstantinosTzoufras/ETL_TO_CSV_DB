@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ETL Studio — Run history</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/diagnostics.js" defer></script>
+    <script src="/history.js" defer></script>
+  </head>
+  <body>
+    <aside>
+      <div class="brand">
+        <span class="logo">E</span>
+        <div>ETL Studio<small>LOCAL WORKSPACE</small></div>
+      </div>
+      <a class="primary wide back-link" href="/">← Back to pipeline builder</a>
+      <nav class="eyebrow">RUN HISTORY</nav>
+      <p class="hint">
+        Every run, every pipeline: CSV, XLSX, XML and database-table exports,
+        single-file and ordered ("Advanced exports"). The builder page only
+        ever shows the latest one.
+      </p>
+      <label
+        >Filter by status<select id="status-filter">
+          <option value="">All</option>
+          <option value="completed">Completed</option>
+          <option value="failed">Failed</option>
+          <option value="running">Running / queued</option>
+        </select></label
+      >
+    </aside>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">WORKSPACE / RUN HISTORY</p>
+          <h1>Run history</h1>
+        </div>
+        <button id="refresh">Refresh</button>
+      </header>
+      <section class="card" id="runs">
+        <p class="muted">Loading…</p>
+      </section>
+      <section class="card" id="run-diagnostics" hidden>
+        <h2>Stored rejection diagnostics</h2>
+        <p id="run-diagnostics-name"></p>
+        <p class="hint">
+          Reads the completed run's rejection file using its pipeline
+          snapshot. The source is not rerun.
+        </p>
+        <div id="run-diagnostics-rows"></div>
+        <button id="run-diagnostics-next" hidden>Next rejected rows</button
+        ><button id="run-diagnostics-close">Close diagnostics</button>
+      </section>
+      <footer>
+        ETL Studio <span>Source → Transform → Validate → Export</span>
+      </footer>
+    </main>
+  </body>
+</html>

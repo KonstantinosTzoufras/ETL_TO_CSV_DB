@@ -224,9 +224,14 @@ function downloadLinks(run){
   const splitBy=run.spec.destination.split_by;
   return `<details class="split-downloads"><summary>${valid.length} files${splitBy?` · split by ${esc(splitBy)}`:""}</summary>${valid.map(anchor).join("")}</details>${rejectedLink}`;
 }
+function runCard(run){
+  return run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br>${downloadLinks(run)}<button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`;
+}
 async function refreshRuns() {
+  // /api/runs is already newest-first; only the latest belongs on the
+  // builder page - the rest live on the dedicated history page.
   const runs=await api("/api/runs");
-  $("runs").innerHTML=runs.length?runs.map(run=>run.spec.kind==="ordered_query_export"?orderedRunCard(run):`<div class="run"><div><strong>${esc(run.name)}</strong><p>${esc(new Date(run.started).toLocaleString())} · ${run.report.processed??0} processed · ${run.report.valid??0} valid · ${run.report.invalid??0} rejected</p>${run.error?`<div class="reason">${esc(run.error)}</div>`:""}</div><div><span class="run-status ${esc(run.status)}">${esc(run.status)}</span>${run.status==="completed"?`<br>${downloadLinks(run)}<button data-diagnostics="${esc(run.id)}">View rejection diagnostics</button>`:""}</div></div>`).join(""):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
+  $("runs").innerHTML=runs.length?runCard(runs[0]):'<p class="muted">No runs yet. Preview your pipeline, then run an export.</p>';
   clearTimeout(timer);
   if(runs.some(r=>["queued","running"].includes(r.status))){
     // A worker-status hiccup must not stop the run poll loop itself - a run

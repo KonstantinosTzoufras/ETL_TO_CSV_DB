@@ -712,9 +712,11 @@
         <section class="card">
           <div class="section-head">
             <div>
-              <h2>Run history</h2>
+              <h2>Latest run</h2>
               <p class="muted">
-                Saved execution snapshots, counts, and downloads.
+                This pipeline's most recent execution. See
+                <a href="/history.html">Run history</a> for every run, every
+                format.
               </p>
             </div>
             <button id="refresh">Refresh</button>
@@ -732,6 +734,9 @@
               No runs yet. Preview your pipeline, then run an export.
             </p>
           </div>
+          <p class="hint">
+            <a href="/history.html">View full run history →</a>
+          </p>
         </section>
         <section class="card" id="run-diagnostics" hidden>
           <h2>Stored rejection diagnostics</h2>

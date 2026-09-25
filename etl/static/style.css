@@ -261,6 +261,14 @@ button:disabled {
 .wide {
   width: 100%;
 }
+.back-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
 
 /* SECTION NAV AND FIELD ROWS
    --------------------------
