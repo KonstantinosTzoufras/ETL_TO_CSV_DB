@@ -261,13 +261,27 @@ button:disabled {
 .wide {
   width: 100%;
 }
-.back-link {
+/* An <a> styled to look and sit exactly like a <button>, for real
+   navigation (a new page/URL) rather than a JS action. */
+.button-link {
   display: block;
   text-align: center;
   text-decoration: none;
-  padding: 10px 14px;
-  border-radius: 6px;
   box-sizing: border-box;
+  background: #fff;
+  color: #42634f;
+  border: 1px solid #d4ded6;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.button-link:hover {
+  background: #edf5ef;
+  border-color: #93b5a0;
+}
+.button-link.primary {
+  color: #fff;
 }
 
 /* SECTION NAV AND FIELD ROWS

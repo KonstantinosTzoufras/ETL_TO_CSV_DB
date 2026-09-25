@@ -23,6 +23,7 @@
         <div>ETL Studio<small>LOCAL WORKSPACE</small></div>
       </div>
       <button id="new" class="primary wide">＋ New pipeline</button>
+      <a class="wide button-link" href="/history.html">📋 Run history</a>
       <details>
         <summary>Advanced exports</summary>
         <p class="hint">
@@ -714,9 +715,8 @@
             <div>
               <h2>Latest run</h2>
               <p class="muted">
-                This pipeline's most recent execution. See
-                <a href="/history.html">Run history</a> for every run, every
-                format.
+                This pipeline's most recent execution. Every run lives in
+                <b>Run history</b> (sidebar).
               </p>
             </div>
             <button id="refresh">Refresh</button>
@@ -734,9 +734,6 @@
               No runs yet. Preview your pipeline, then run an export.
             </p>
           </div>
-          <p class="hint">
-            <a href="/history.html">View full run history →</a>
-          </p>
         </section>
         <section class="card" id="run-diagnostics" hidden>
           <h2>Stored rejection diagnostics</h2>
